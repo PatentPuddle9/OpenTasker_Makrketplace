@@ -1,1 +1,1 @@
-UNSIGNED - signing key has not yet been provisioned. See docs/SIGNING_KEYS.md.
+MEUCIQC2Q615DgK4OudMNm/RiEn1bRPXrxoh5ukRlHxw3+MT9gIgSAHHcdHr0TSDS7o3hTEWWCyqNtOISilL0Pigu/+aS2o=\n
