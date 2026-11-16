@@ -1,0 +1,5 @@
+# Only existing moderators may change moderation policy and publisher controls.
+/.github/marketplace-reviewers.json @PatentPuddle9
+/moderation/ @PatentPuddle9
+/tools/ @PatentPuddle9
+/schemas/ @PatentPuddle9

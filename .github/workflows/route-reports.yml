@@ -1,0 +1,29 @@
+name: Route marketplace reports
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  route:
+    if: contains(github.event.issue.labels.*.name, 'package-report')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign and notify marketplace owner
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.issue.number;
+            await github.rest.issues.addAssignees({
+              ...context.repo,
+              issue_number,
+              assignees: ["PatentPuddle9"]
+            });
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number,
+              body: "@PatentPuddle9 A marketplace package report needs your review. Please inspect the package ID/version and decide whether it should remain published, be corrected, or be suspended."
+            });

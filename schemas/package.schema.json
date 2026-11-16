@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/PatentPuddle9/OpenTasker_Makrketplace/schemas/package.schema.json",
+  "title": "OpenTasker Marketplace package manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "name", "publisher", "version", "summary", "category", "minimumAppVersion", "bundleFile", "requiredInputs", "externalDestinations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,79}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "publisher": { "type": "string", "pattern": "^[A-Za-z0-9-]{1,39}$" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\\\.[0-9]+\\\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$" },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 400 },
+    "description": { "type": "string", "maxLength": 4000 },
+    "category": { "type": "string", "minLength": 1, "maxLength": 50 },
+    "minimumAppVersion": { "type": "string", "pattern": "^[0-9]+\\\\.[0-9]+\\\\.[0-9]+$" },
+    "bundleFile": { "const": "bundle.json" },
+    "requiredInputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label", "path", "required"],
+        "properties": {
+          "key": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "path": { "type": "string", "pattern": "^/" },
+          "required": { "type": "boolean" },
+          "defaultValue": { "type": "string", "maxLength": 500 },
+          "hint": { "type": "string", "maxLength": 300 },
+          "selector": { "enum": ["TEXT", "PHONE", "EMAIL", "URL", "APP", "LOCATION", "INTEGER", "DECIMAL", "TIME", "VARIABLE"] }
+        }
+      }
+    },
+    "externalDestinations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["provider", "domain", "hostingCountry", "privacyPolicyUrl", "dataFields", "purpose", "privacyAssessment"],
+        "properties": {
+          "provider": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "domain": { "type": "string", "minLength": 3, "maxLength": 253 },
+          "hostingCountry": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "privacyPolicyUrl": { "type": "string", "pattern": "^https://" },
+          "dataFields": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "purpose": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "privacyAssessment": { "enum": ["verified", "not-verified", "known-concerns"] },
+          "riskNotes": { "type": "string", "maxLength": 1000 }
+        }
+      }
+    }
+  }
+}

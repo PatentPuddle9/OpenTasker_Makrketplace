@@ -1,0 +1,52 @@
+name: Report a marketplace package
+description: Report a privacy, security, safety, or functionality concern with a marketplace package.
+title: "[Package report] "
+labels: ["package-report", "needs-triage"]
+assignees:
+  - PatentPuddle9
+body:
+  - type: input
+    id: package_id
+    attributes:
+      label: Package ID
+      description: The marketplace package identifier.
+      placeholder: example.home-arrival
+    validations:
+      required: true
+  - type: input
+    id: package_version
+    attributes:
+      label: Package version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: reason
+    attributes:
+      label: Report reason
+      options:
+        - Malicious or suspicious behavior
+        - Unexpected data collection or sharing
+        - Undisclosed external destination
+        - Rapid or repeated execution
+        - Device lockout or destructive behavior
+        - Broken or misleading functionality
+        - Privacy or security vulnerability
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened?
+      description: Describe the behavior and steps to reproduce it. Do not include personal data, phone numbers, passwords, API keys, or tokens.
+      placeholder: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed personal information and credentials from this report.
+          required: true

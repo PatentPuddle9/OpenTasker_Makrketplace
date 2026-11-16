@@ -1,0 +1,51 @@
+name: Publish signed marketplace catalogue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/**"
+      - "moderation/**"
+      - "tools/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  publish:
+    name: Build and sign catalogue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build catalogue from validated packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: python tools/build_catalog.py
+
+      - name: Sign catalogue
+        env:
+          MARKETPLACE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.MARKETPLACE_SIGNING_PRIVATE_KEY_B64 }}
+        run: bash tools/sign_catalog.sh
+
+      - name: Publish generated catalogue and signature
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalog/v1/index.json catalog/v1/index.sig
+          if git diff --cached --quiet; then
+            echo "Catalogue is already up to date."
+            exit 0
+          fi
+          git commit -m "Publish signed marketplace catalogue"
+          git push
