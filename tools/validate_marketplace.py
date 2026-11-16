@@ -11,12 +11,12 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 PACKAGE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{1,79}$")
-SEMVER = re.compile(r"^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$")
-INPUT_TOKEN = re.compile(r"^\\{\\{input:([A-Za-z][A-Za-z0-9_-]{0,47})\\}\\}$")
-INPUT_REFERENCE = re.compile(r"\\{\\{input:([A-Za-z][A-Za-z0-9_-]{0,47})\\}\\}")
-EMAIL = re.compile(r"(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b")
-US_PHONE = re.compile(r"(?<!\\w)(?:\\+?1[ .-]?)?(?:\\(?\\d{3}\\)?[ .-]?)\\d{3}[ .-]?\\d{4}(?!\\w)")
-SECRET_VALUE = re.compile(r"(?i)\\b(?:bearer\\s+[A-Za-z0-9._~+/=-]{12,}|(?:sk|gh[pousr]?)_[A-Za-z0-9_-]{16,}|(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\\s*[:=]\\s*['\\"]?[^\\s,'\\"]{8,})")
+SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$")
+INPUT_TOKEN = re.compile(r"^\{\{input:([A-Za-z][A-Za-z0-9_-]{0,47})\}\}$")
+INPUT_REFERENCE = re.compile(r"\{\{input:([A-Za-z][A-Za-z0-9_-]{0,47})\}\}")
+EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
+US_PHONE = re.compile(r"(?<!\w)(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}(?!\w)")
+SECRET_VALUE = re.compile(r"(?i)\b(?:bearer\s+[A-Za-z0-9._~+/=-]{12,}|(?:sk|gh[pousr]?)_[A-Za-z0-9_-]{16,}|(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*['\"]?[^\s,'\"]{8,})")
 SENSITIVE_KEY = re.compile(r"(?i)(phone|recipient|contact|email|address|authorization|token|secret|password|credential|api.?key|webhook.?secret|sms.?to|destination.?number)")
 
 HIGH_RISK_ACTIONS = {
