@@ -3,3 +3,12 @@
 /moderation/ @PatentPuddle9
 /tools/ @PatentPuddle9
 /schemas/ @PatentPuddle9
+
+/.github/CODEOWNERS @PatentPuddle9
+/.github/workflows/ @PatentPuddle9
+/.github/ISSUE_TEMPLATE/ @PatentPuddle9
+/.github/PULL_REQUEST_TEMPLATE.md @PatentPuddle9
+/README.md @PatentPuddle9
+/CONTRIBUTING.md @PatentPuddle9
+/SECURITY.md @PatentPuddle9
+/docs/ @PatentPuddle9

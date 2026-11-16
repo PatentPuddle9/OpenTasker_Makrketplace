@@ -86,7 +86,7 @@ def main():
 
     protected = [
         path for path in paths
-        if path.startswith(("moderation/", ".github/marketplace-reviewers.json", "tools/", "schemas/"))
+        if path.startswith(("moderation/", ".github/marketplace-reviewers.json", ".github/CODEOWNERS", ".github/PULL_REQUEST_TEMPLATE.md", ".github/workflows/", ".github/ISSUE_TEMPLATE/", "tools/", "schemas/", "docs/")) or path in {"README.md", "CONTRIBUTING.md", "SECURITY.md"}
     ]
     if protected and author not in moderators:
         raise SystemExit("Only an existing moderator may change reviewer, moderation, validator, or schema files.")
@@ -101,6 +101,12 @@ def main():
 
     for folder in package_folders:
         try:
+            try:
+                git_show(base, f"{folder}/manifest.json")
+                errors.append(f"{folder}: published package versions are immutable; submit a new version directory.")
+                continue
+            except subprocess.CalledProcessError:
+                pass
             with tempfile.TemporaryDirectory() as temporary:
                 target = Path(temporary) / "packages" / folder.split("/")[1] / folder.split("/")[2]
                 target.mkdir(parents=True, exist_ok=True)

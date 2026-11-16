@@ -34,7 +34,7 @@ MEDIUM_RISK_ACTIONS = {
     "app.launch", "intent.launch", "file.append",
 }
 EXTERNAL_ACTIONS = {
-    "sms.send", "http.request", "http.get", "http.post",
+    "http.request", "http.get", "http.post",
     "integration.home_assistant.webhook", "mqtt.publish", "download",
 }
 FORBIDDEN_ACTIONS = {
@@ -117,6 +117,8 @@ def external_hosts(bundle):
             raise ValueError(f"Credentials embedded in URL at {path}; move them to a local input.")
         if parsed.query and re.search(r"(?i)(token|key|secret|auth|password|code)=", parsed.query):
             raise ValueError(f"Credential-like query parameter found in URL at {path}.")
+        if parsed.path and re.search(r"(?i)/(?:webhook|token|secret|key)/[^/]{12,}(?:/|$)", parsed.path):
+            raise ValueError(f"Credential-like path segment found in URL at {path}.")
         if parsed.scheme.lower() == "http" and host and not is_private_host(host):
             raise ValueError(f"External destination at {path} must use HTTPS.")
     return found

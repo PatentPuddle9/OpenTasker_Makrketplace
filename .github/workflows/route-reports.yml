@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   route:
-    if: contains(github.event.issue.labels.*.name, 'package-report')
+    if: contains(github.event.issue.title, '[Package report]') || contains(github.event.issue.labels.*.name, 'package-report')
     runs-on: ubuntu-latest
     steps:
       - name: Assign and notify marketplace owner
