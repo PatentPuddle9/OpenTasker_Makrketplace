@@ -14,6 +14,8 @@ Use a lowercase package ID containing letters, numbers, dots, underscores, or hy
 
 The bundle must be a normal OpenTasker JSON bundle produced by OpenTasker. It may contain actions, profiles, variables, and scenes. It must not contain arbitrary code, scripts, APKs, native libraries, executable files, or plugin binaries.
 
+See [docs/PACKAGE_FORMAT.md](docs/PACKAGE_FORMAT.md) for a complete manifest example and input placeholder format.
+
 ## Protect personal information
 
 Do not submit a live automation export containing personal data. Before submitting:
