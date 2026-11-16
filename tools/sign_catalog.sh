@@ -10,7 +10,7 @@ cleanup() {
 trap cleanup EXIT
 
 printf '%s' "$MARKETPLACE_SIGNING_PRIVATE_KEY_B64" | base64 --decode > "$tmp_key"
-openssl pkey -in "$tmp_key" -noout >/dev/null
+# Validate the configured key before signing; never print or persist its contents.\nopenssl pkey -in "$tmp_key" -noout >/dev/null
 openssl dgst -sha256 -sign "$tmp_key" -out "$tmp_sig" catalog/v1/index.json
 base64 --wrap=0 "$tmp_sig" > catalog/v1/index.sig
 printf '\\n' >> catalog/v1/index.sig
