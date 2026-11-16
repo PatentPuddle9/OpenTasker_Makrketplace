@@ -13,7 +13,7 @@ Do **not** put the same private secret in both repositories. An installed app ca
 
 ## Generate the pair
 
-Generate an ECDSA P-256 key pair using a trusted local/browser-side generator. The private value must be generated on a device you control and must never be uploaded to a third-party service.
+Download [tools/signing-key-generator.html](../tools/signing-key-generator.html) from this repository (use GitHub's Download raw file option), then open the downloaded HTML file in Chrome. It uses the browser's built-in Web Crypto API and makes no network requests. Generate the pair locally; the private value must never be uploaded to a third-party service.
 
 The private-key Actions secret must contain Base64 of the complete PEM text, including its BEGIN/END lines. The app public-key Actions secret must contain Base64 of the public key's X.509 SubjectPublicKeyInfo DER bytes (not PEM text).
 
