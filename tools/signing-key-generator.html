@@ -32,7 +32,7 @@
 const $=id=>document.getElementById(id);
 const enc=new TextEncoder();
 const b64=buffer=>{const a=new Uint8Array(buffer);let s='';for(let i=0;i<a.length;i+=8192)s+=String.fromCharCode(...a.subarray(i,i+8192));return btoa(s)};
-const pem=(label,buffer)=>{const s=b64(buffer);return '-----BEGIN '+label+'-----\\n'+(s.match(/.{1,64}/g)||[]).join('\\n')+'\\n-----END '+label+'-----\\n'};
+const pem=(label,buffer)=>{const s=b64(buffer);return '-----BEGIN '+label+'-----\n'+(s.match(/.{1,64}/g)||[]).join('\n')+'\n-----END '+label+'-----\n'};
 $('generate').addEventListener('click',async()=>{
 $('generate').disabled=true;$('status').textContent='Generating locally…';
 try{
