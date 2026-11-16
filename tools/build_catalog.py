@@ -156,7 +156,7 @@ def main():
         "packages": entries,
     }
     Path("catalog/v1/index.json").write_text(
-        json.dumps(catalog, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\\n",
+        json.dumps(catalog, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
     print(f"Generated {len(entries)} package listing(s) for {repository}.")
