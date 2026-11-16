@@ -1,1 +1,60 @@
-<!-- Local, offline ECDSA P-256 key generator; open a downloaded copy in a browser. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenTasker Marketplace Key Generator</title>
+<style>
+:root{font-family:system-ui,sans-serif;color-scheme:light dark}body{margin:0;padding:26px 16px 48px;background:Canvas;color:CanvasText}main{max-width:760px;margin:auto}h1{font-size:1.8rem}.box{border:1px solid #8888;border-radius:14px;padding:15px;margin:16px 0}.safe{border-left:5px solid #269b63}.warn{border-left:5px solid #c58b20}button{border:0;border-radius:9px;padding:11px 15px;background:#6750a4;color:white;font:inherit;font-weight:650;cursor:pointer;margin:4px}button:disabled{opacity:.5}textarea{box-sizing:border-box;width:100%;min-height:100px;padding:10px;border-radius:9px;border:1px solid #8888;background:Field;color:FieldText;font:12px/1.5 monospace}.row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.muted{opacity:.8;font-size:.93rem}label{font-weight:700}#status{min-height:1.5em;font-weight:650}
+</style>
+</head>
+<body><main>
+<h1>OpenTasker Marketplace key generator</h1>
+<p class="muted">Creates the ECDSA P-256 key pair used to sign and verify the official marketplace catalogue.</p>
+<div class="box safe"><b>Generated in your browser only.</b><p class="muted">This page uses the browser's built-in Web Crypto API. It makes no network requests and does not save keys to browser storage. Download/open a local copy of this HTML file before generating keys.</p></div>
+<div class="box warn"><b>Important: these are a matching pair, not the same secret.</b><p class="muted">The private-key value goes only in the Marketplace repository. The public-key value goes in the OpenTasker app repository. Never put the private key in the app or share it.</p></div>
+<button id="generate">Generate key pair</button><button id="clear" disabled>Clear values</button>
+<p id="status" role="status" aria-live="polite">Ready.</p>
+<section id="outputs" hidden>
+<div class="row"><label for="privateSecret">Marketplace Actions secret value</label><button data-copy="privateSecret">Copy</button></div>
+<p class="muted">Add as <code>MARKETPLACE_SIGNING_PRIVATE_KEY_B64</code> in <code>PatentPuddle9/OpenTasker_Makrketplace</code>.</p>
+<textarea id="privateSecret" readonly spellcheck="false"></textarea>
+<div class="row"><label for="publicSecret">OpenTasker app Actions secret value</label><button data-copy="publicSecret">Copy</button></div>
+<p class="muted">Add as <code>MARKETPLACE_PUBLIC_KEY_X509_BASE64</code> in <code>PatentPuddle9/OpenTasker_</code>.</p>
+<textarea id="publicSecret" readonly spellcheck="false"></textarea>
+<div class="row"><label for="privatePem">Optional private PEM backup</label><button data-copy="privatePem">Copy</button></div>
+<p class="muted">Keep this backup private. Never commit or share it.</p>
+<textarea id="privatePem" readonly spellcheck="false"></textarea>
+</section>
+<div class="box"><b>After adding the two secrets:</b><ol class="muted"><li>Run <b>Build OpenTasker APK</b> on <code>Experimental</code>.</li><li>Run <b>Publish signed marketplace catalogue</b> in the Marketplace repository.</li><li>Install the new APK. The app stays fail-closed until rebuilt with the public key.</li></ol></div>
+</main>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const enc=new TextEncoder();
+const b64=buffer=>{const a=new Uint8Array(buffer);let s='';for(let i=0;i<a.length;i+=8192)s+=String.fromCharCode(...a.subarray(i,i+8192));return btoa(s)};
+const pem=(label,buffer)=>{const s=b64(buffer);return '-----BEGIN '+label+'-----\\n'+(s.match(/.{1,64}/g)||[]).join('\\n')+'\\n-----END '+label+'-----\\n'};
+$('generate').addEventListener('click',async()=>{
+$('generate').disabled=true;$('status').textContent='Generating locally…';
+try{
+if(!globalThis.crypto?.subtle)throw new Error('Web Crypto is unavailable. Open this downloaded file in an up-to-date Chrome browser.');
+const pair=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
+const priv=await crypto.subtle.exportKey('pkcs8',pair.privateKey);
+const pub=await crypto.subtle.exportKey('spki',pair.publicKey);
+const privatePem=pem('PRIVATE KEY',priv);
+$('privatePem').value=privatePem;
+$('privateSecret').value=b64(enc.encode(privatePem));
+$('publicSecret').value=b64(pub);
+$('outputs').hidden=false;$('clear').disabled=false;
+$('status').textContent='Generated in this browser. Copy each value into its matching GitHub Actions secret.';
+}catch(e){$('status').textContent=e?.message||'Key generation failed.'}
+finally{$('generate').disabled=false}
+});
+document.querySelectorAll('[data-copy]').forEach(btn=>btn.addEventListener('click',async()=>{
+const el=$(btn.dataset.copy);el.focus();el.select();
+try{await navigator.clipboard.writeText(el.value)}catch(e){if(!document.execCommand('copy')){$('status').textContent='Select the text and copy it manually.';return}}
+$('status').textContent='Copied. Paste into the matching GitHub Actions secret.';
+}));
+$('clear').addEventListener('click',()=>{['privateSecret','publicSecret','privatePem'].forEach(id=>$(id).value='');$('outputs').hidden=true;$('clear').disabled=true;$('status').textContent='Cleared from this page.'});
+})();
+</script>
+</body></html>
