@@ -13,6 +13,10 @@ permissions:
   contents: write
   pull-requests: read
 
+concurrency:
+  group: official-marketplace-catalogue-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
     name: Build and sign catalogue
@@ -25,6 +29,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      # A signing run can wait behind other pushes. Always publish from the latest
+      # main branch so queued runs cannot overwrite or push from a stale checkout.
+      - name: Sync latest main before building catalogue
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
 
       - name: Build catalogue from validated packages
         env:
