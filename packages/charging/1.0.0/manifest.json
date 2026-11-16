@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "charging",
+  "name": "Charging",
+  "publisher": "PatentPuddle9",
+  "version": "1.0.0",
+  "summary": "Charging",
+  "category": "Actions",
+  "minimumAppVersion": "0.2.245",
+  "bundleFile": "bundle.json",
+  "requiredInputs": [],
+  "externalDestinations": []
+}
