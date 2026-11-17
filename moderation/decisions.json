@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
   "withdrawnPackages": [],
-  "notes": "Maintainers only. Use package IDs and exact versions. Keep reasons factual and do not include personal data."
+  "notes": "Maintainers only. Use package IDs and exact versions. Keep reasons factual and do not include personal data.",
+  "deletedPackages": []
 }
