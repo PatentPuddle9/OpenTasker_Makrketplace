@@ -153,6 +153,16 @@ def validate_visual_package(folder: Path, manifest: dict, payload: dict, bundle_
     if manifest.get("externalDestinations", []) not in ([], None):
         errors.append("visual Marketplace packages cannot declare external service destinations.")
 
+    for source_label, source in (("package payload", payload), ("listing metadata", {
+        key: manifest.get(key, "")
+        for key in ("name", "summary", "description", "changelog", "documentationUrl")
+    })):
+        for value_path, value in iter_strings(source):
+            if EMAIL.search(value) or US_PHONE.search(value) or SECRET_VALUE.search(value):
+                errors.append(
+                    f"{source_label} contains possible personal information or a credential at {value_path}."
+                )
+
     package_type = payload.get("type")
     expected = {
         "Widget Displays": "widget_display",
