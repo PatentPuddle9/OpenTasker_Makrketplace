@@ -214,7 +214,7 @@
     "documentationUrl": {
       "type": "string",
       "maxLength": 300,
-      "pattern": "^https://"
+      "pattern": "^(?:https://.+)?$"
     }
   }
 }
