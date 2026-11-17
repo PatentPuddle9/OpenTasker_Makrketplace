@@ -227,13 +227,20 @@ def main():
         if login in moderators and login != author and review.get("state") == "APPROVED"
     ]
     if is_update:
-        if approved:
-            print("Package update formally approved by trusted reviewer(s): " + ", ".join(sorted(approved)))
+        formal_update_reviewers = [
+            login for login, review in latest_reviews.items()
+            if login != author and review.get("state") == "APPROVED"
+        ]
+        if not formal_update_reviewers:
+            raise SystemExit(
+                "Updates to published packages require a formal APPROVED GitHub review from another repository "
+                "collaborator with write access. Comment approvals do not replace this review."
+            )
+        print("Package update formally approved by: " + ", ".join(sorted(formal_update_reviewers)))
+        # High-risk updates still need the additional trusted-moderator approval required for
+        # high-risk content, beyond the independent review required for every update.
+        if highest_risk != "high":
             return
-        raise SystemExit(
-            "Updates to published packages require a formal APPROVED review from a trusted Marketplace moderator "
-            "other than the package publisher. Comment approvals do not replace this review."
-        )
 
     if highest_risk != "high":
         print("No manual moderator approval is required for this low/medium-risk first publication.")
