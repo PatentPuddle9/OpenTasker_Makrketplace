@@ -7,6 +7,7 @@ import hashlib
 import ipaddress
 import json
 import re
+import zlib
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -128,16 +129,69 @@ def validate_png(path: Path, max_bytes: int, label: str, max_dimension: int = 20
     if not path.is_file():
         return [f"{label} is missing."]
     size = path.stat().st_size
-    if size < 24 or size > max_bytes:
-        return [f"{label} must be a PNG between 24 bytes and {max_bytes} bytes."]
-    with path.open("rb") as image:
-        header = image.read(24)
-    if header[:8] != b"\\x89PNG\\r\\n\\x1a\\n" or header[12:16] != b"IHDR":
+    if size < 45 or size > max_bytes:
+        return [f"{label} must be a PNG between 45 bytes and {max_bytes} bytes."]
+    data = path.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
         return [f"{label} must be a valid PNG image."]
-    width = int.from_bytes(header[16:20], "big")
-    height = int.from_bytes(header[20:24], "big")
-    if width < 1 or height < 1 or width > max_dimension or height > max_dimension:
-        return [f"{label} dimensions must be between 1 and {max_dimension} pixels."]
+
+    # Accept only ordinary image chunks. Text, EXIF, timestamps, and embedded color
+    # profiles are unnecessary for Marketplace previews and can carry private metadata.
+    allowed_chunks = {
+        b"IHDR", b"PLTE", b"IDAT", b"IEND", b"tRNS", b"gAMA",
+        b"cHRM", b"sRGB", b"sBIT", b"bKGD", b"pHYs",
+    }
+    offset = 8
+    width = height = 0
+    saw_header = saw_data = saw_end = False
+    while offset + 12 <= len(data):
+        chunk_length = int.from_bytes(data[offset:offset + 4], "big")
+        chunk_type = data[offset + 4:offset + 8]
+        chunk_end = offset + 12 + chunk_length
+        if chunk_end > len(data):
+            return [f"{label} contains a truncated PNG chunk."]
+        if chunk_type not in allowed_chunks:
+            return [f"{label} contains unsupported or metadata-bearing PNG chunk {chunk_type.decode('ascii', 'replace')}."]
+        chunk_payload = data[offset + 8:offset + 8 + chunk_length]
+        stored_crc = int.from_bytes(data[offset + 8 + chunk_length:chunk_end], "big")
+        calculated_crc = zlib.crc32(chunk_type + chunk_payload) & 0xFFFFFFFF
+        if stored_crc != calculated_crc:
+            return [f"{label} contains a PNG chunk with an invalid checksum."]
+
+        if not saw_header:
+            if chunk_type != b"IHDR" or chunk_length != 13:
+                return [f"{label} must begin with a valid PNG IHDR chunk."]
+            width = int.from_bytes(chunk_payload[0:4], "big")
+            height = int.from_bytes(chunk_payload[4:8], "big")
+            bit_depth = chunk_payload[8]
+            color_type = chunk_payload[9]
+            compression = chunk_payload[10]
+            filtering = chunk_payload[11]
+            interlace = chunk_payload[12]
+            if width < 1 or height < 1 or width > max_dimension or height > max_dimension:
+                return [f"{label} dimensions must be between 1 and {max_dimension} pixels."]
+            if bit_depth not in {1, 2, 4, 8, 16} or color_type not in {0, 2, 3, 4, 6}:
+                return [f"{label} uses an unsupported PNG color format."]
+            if compression != 0 or filtering != 0 or interlace not in {0, 1}:
+                return [f"{label} uses unsupported PNG compression, filtering, or interlacing."]
+            saw_header = True
+        elif chunk_type == b"IHDR":
+            return [f"{label} contains more than one IHDR chunk."]
+
+        if chunk_type == b"IDAT":
+            if saw_end:
+                return [f"{label} contains image data after its end marker."]
+            saw_data = True
+        elif chunk_type == b"IEND":
+            if chunk_length != 0 or not saw_data:
+                return [f"{label} has an invalid PNG end marker."]
+            saw_end = True
+            offset = chunk_end
+            break
+        offset = chunk_end
+
+    if not (saw_header and saw_data and saw_end) or offset != len(data):
+        return [f"{label} is incomplete or contains trailing data after IEND."]
     return []
 
 
