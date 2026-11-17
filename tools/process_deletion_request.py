@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import urllib.request
 from datetime import datetime, timezone
@@ -108,11 +109,38 @@ def main():
         deleted = decisions.setdefault("deletedPackages", [])
         if not isinstance(deleted, list):
             raise SystemExit("moderation/decisions.json deletedPackages must be an array.")
-        if any(str(item.get("id", "")).lower() == package_id for item in deleted if isinstance(item, dict)):
+        issue_url = str(issue.get("html_url", ""))
+        if any(
+            str(item.get("requestUrl", "")) == issue_url
+            for item in deleted
+            if isinstance(item, dict)
+        ):
             finish_issue(
                 repository,
                 number,
-                f"Package `{package_id}` was already deleted from the Marketplace. Existing installed copies are unaffected.",
+                f"Deletion request for `{package_id}` was already processed. The package ID remains available for a new listing.",
+            )
+            return
+
+        # Re-check the current main checkout after the concurrency-safe refresh. All versions
+        # of the active package generation must still belong to the authenticated publisher.
+        package_dir = Path("packages") / package_id
+        manifests = sorted(package_dir.glob("*/manifest.json"))
+        if not manifests:
+            finish_issue(repository, number, f"Deletion request rejected: package `{package_id}` no longer exists.")
+            return
+        current_publishers = set()
+        for manifest_path in manifests:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if str(manifest.get("id", "")).lower() != package_id:
+                finish_issue(repository, number, "Deletion request rejected: a package manifest does not match its folder.")
+                return
+            current_publishers.add(str(manifest.get("publisher", "")).lower())
+        if current_publishers != {author.lower()}:
+            finish_issue(
+                repository,
+                number,
+                "Deletion request rejected: only the current publisher recorded in the active package manifests can delete it.",
             )
             return
 
@@ -120,13 +148,32 @@ def main():
             "id": package_id,
             "publisher": author,
             "deletedAt": datetime.now(timezone.utc).isoformat(),
-            "requestUrl": issue.get("html_url", ""),
+            "requestUrl": issue_url,
         }]
+
+        # Free the package ID by removing all immutable files from the old generation.
+        # Imported copies on users' devices are unaffected. The deletion record above remains
+        # as an audit trail, but it no longer reserves the ID.
+        shutil.rmtree(package_dir)
+
+        # Version-specific withdrawal decisions from the removed generation must not block a
+        # future package that legitimately reuses the same ID and starts again at 1.0.0.
+        withdrawn = decisions.setdefault("withdrawnPackages", [])
+        if not isinstance(withdrawn, list):
+            raise SystemExit("moderation/decisions.json withdrawnPackages must be an array.")
+        decisions["withdrawnPackages"] = [
+            item for item in withdrawn
+            if not (isinstance(item, dict) and str(item.get("id", "")).lower() == package_id)
+        ]
+
         decisions_path.write_text(
             json.dumps(decisions, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-        subprocess.run(["git", "add", "moderation/decisions.json"], check=True)
+        subprocess.run(
+            ["git", "add", "-A", "--", str(package_dir), "moderation/decisions.json"],
+            check=True,
+        )
         subprocess.run(
             ["git", "commit", "-m", f"Withdraw Marketplace package {package_id}"],
             check=True,
@@ -147,10 +194,10 @@ def main():
     finish_issue(
         repository,
         number,
-        f"Package `{package_id}` has been withdrawn from the Marketplace. No review was required. "
-        "New installs are no longer offered; automations already imported by users remain installed and unchanged.",
+        f"Package `{package_id}` has been withdrawn from the Marketplace. Its old package files were removed and its ID is now free for a new listing. "
+        "Automations already imported by users remain installed and unchanged. A reused ID starts a fresh package at version 1.0.0.",
     )
-    print(f"Deleted Marketplace listing for {package_id}; existing installed copies are untouched.")
+    print(f"Deleted Marketplace listing for {package_id}; removed old package files and freed the ID. Existing installed copies are untouched.")
 
 
 if __name__ == "__main__":
