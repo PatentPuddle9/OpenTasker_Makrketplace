@@ -91,40 +91,58 @@ def main():
         return
 
     decisions_path = Path("moderation/decisions.json")
-    decisions = json.loads(decisions_path.read_text(encoding="utf-8"))
-    deleted = decisions.setdefault("deletedPackages", [])
-    if not isinstance(deleted, list):
-        raise SystemExit("moderation/decisions.json deletedPackages must be an array.")
-    if any(str(item.get("id", "")).lower() == package_id for item in deleted if isinstance(item, dict)):
-        finish_issue(
-            repository,
-            number,
-            f"Package `{package_id}` was already deleted from the Marketplace. Existing installed copies are unaffected.",
-        )
-        return
-
-    decisions["deletedPackages"] = deleted + [{
-        "id": package_id,
-        "publisher": author,
-        "deletedAt": datetime.now(timezone.utc).isoformat(),
-        "requestUrl": issue.get("html_url", ""),
-    }]
-    decisions_path.write_text(
-        json.dumps(decisions, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
     subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
     subprocess.run(
         ["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"],
         check=True,
     )
-    subprocess.run(["git", "add", "moderation/decisions.json"], check=True)
-    subprocess.run(
-        ["git", "commit", "-m", f"Withdraw Marketplace package {package_id}"],
-        check=True,
-    )
-    subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
+
+    published = False
+    for attempt in range(1, 4):
+        # A catalogue publisher may push to main while this deletion is being processed.
+        # Refresh and rebuild the tombstone from the newest main instead of losing either change.
+        subprocess.run(["git", "fetch", "origin", "main"], check=True)
+        subprocess.run(["git", "reset", "--hard", "origin/main"], check=True)
+
+        decisions = json.loads(decisions_path.read_text(encoding="utf-8"))
+        deleted = decisions.setdefault("deletedPackages", [])
+        if not isinstance(deleted, list):
+            raise SystemExit("moderation/decisions.json deletedPackages must be an array.")
+        if any(str(item.get("id", "")).lower() == package_id for item in deleted if isinstance(item, dict)):
+            finish_issue(
+                repository,
+                number,
+                f"Package `{package_id}` was already deleted from the Marketplace. Existing installed copies are unaffected.",
+            )
+            return
+
+        decisions["deletedPackages"] = deleted + [{
+            "id": package_id,
+            "publisher": author,
+            "deletedAt": datetime.now(timezone.utc).isoformat(),
+            "requestUrl": issue.get("html_url", ""),
+        }]
+        decisions_path.write_text(
+            json.dumps(decisions, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "moderation/decisions.json"], check=True)
+        subprocess.run(
+            ["git", "commit", "-m", f"Withdraw Marketplace package {package_id}"],
+            check=True,
+        )
+        push = subprocess.run(
+            ["git", "push", "origin", "HEAD:main"],
+            text=True,
+            capture_output=True,
+        )
+        if push.returncode == 0:
+            published = True
+            break
+        print(f"Push attempt {attempt} raced with another main update: {push.stderr.strip()}")
+
+    if not published:
+        raise SystemExit("Could not publish the deletion tombstone after three attempts; the request can be retried.")
 
     finish_issue(
         repository,
