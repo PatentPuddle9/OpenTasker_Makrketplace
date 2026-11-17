@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import subprocess
 import urllib.request
@@ -160,6 +161,10 @@ def main():
             "externalDestinations": manifest.get("externalDestinations", []),
             "bundlePath": f"{folder.as_posix()}/bundle.json",
             "bundleSha256": result["bundleSha256"],
+            "previewPath": f"{folder.as_posix()}/preview.png" if (folder / "preview.png").is_file() else "",
+            "previewSha256": hashlib.sha256((folder / "preview.png").read_bytes()).hexdigest() if (folder / "preview.png").is_file() else "",
+            "iconAssetPath": f"{folder.as_posix()}/icon.png" if (folder / "icon.png").is_file() else "",
+            "iconAssetSha256": hashlib.sha256((folder / "icon.png").read_bytes()).hexdigest() if (folder / "icon.png").is_file() else "",
         })
 
     entries.sort(key=lambda item: (item["category"].lower(), item["name"].lower(), item["id"], item["version"]))
