@@ -190,13 +190,33 @@ def main():
             encoding="utf-8",
         )
 
+        reviews_path = Path("moderation/reviews.json")
+        reviews_data = json.loads(reviews_path.read_text(encoding="utf-8"))
+        reviews_data["reviews"] = [
+            item for item in reviews_data.get("reviews", [])
+            if not (isinstance(item, dict) and str(item.get("packageId", "")).lower() == package_id)
+        ]
+        reviews_path.write_text(
+            json.dumps(reviews_data, ensure_ascii=False, indent=2) + "\\n",
+            encoding="utf-8",
+        )
+
+        downloads_path = Path("moderation/download-stats.json")
+        downloads_data = json.loads(downloads_path.read_text(encoding="utf-8"))
+        downloads_data.setdefault("packages", {}).pop(package_id, None)
+        downloads_path.write_text(
+            json.dumps(downloads_data, ensure_ascii=False, indent=2) + "\\n",
+            encoding="utf-8",
+        )
+
         decisions_path.write_text(
             json.dumps(decisions, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
         subprocess.run(
             ["git", "add", "-A", "--", str(package_dir), "moderation/decisions.json",
-             "moderation/ratings.json", "moderation/featured-packages.json"],
+             "moderation/ratings.json", "moderation/featured-packages.json",
+             "moderation/reviews.json", "moderation/download-stats.json"],
             check=True,
         )
         subprocess.run(
