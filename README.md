@@ -15,6 +15,8 @@ There is no application server. GitHub stores packages and the signed catalogue,
 
 Marketplace approval is not a guarantee that an automation is harmless. The app continues to show the risk level after approval.
 
+When a package is deleted, its repository files are removed and its package ID becomes available for a new listing. Reused IDs start a fresh version history at `1.0.0`; previously imported automations remain on users' devices. Deletion records are retained for audit history only.
+
 ## Repository layout
 
 - packages/ — versioned package manifests and OpenTasker bundles.
