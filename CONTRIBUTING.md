@@ -44,7 +44,7 @@ Open a pull request with a clear description of what the automation does and why
 
 GitHub Actions runs automated checks. Low- and medium-risk first publications can pass without manual content review. High-risk first publications require approval from a trusted moderator listed in .github/marketplace-reviewers.json.
 
-Every update to an existing package requires a formal APPROVED GitHub review from a trusted moderator other than the publisher, regardless of risk. A comment command is not a substitute for this update review. The app creates each update as a new immutable version and opens a pull request; the update does not appear in the catalogue until it is approved and merged.
+Every update to an existing package requires a formal APPROVED GitHub review from another repository collaborator with write access, regardless of risk. The publisher cannot approve their own update, and a comment command is not a substitute for this review. High-risk updates also require trusted-moderator approval. The app creates each update as a new immutable version and opens a pull request; the update does not appear in the catalogue until it is approved and merged.
 
 A successful CI check does not publish a package by itself. A maintainer must merge the pull request. The publish workflow then rebuilds and signs the catalogue.
 
