@@ -100,6 +100,11 @@ def main():
         (item.get("id"), item.get("version"))
         for item in decisions.get("withdrawnPackages", [])
     }
+    deleted_ids = {
+        str(item.get("id", "")).lower()
+        for item in decisions.get("deletedPackages", [])
+        if isinstance(item, dict)
+    }
 
     entries = []
     for manifest_path in sorted(Path("packages").glob("*/*/manifest.json")):
@@ -110,6 +115,9 @@ def main():
 
         manifest = result["manifest"]
         package_id, version = manifest["id"], manifest["version"]
+        if package_id.lower() in deleted_ids:
+            print(f"Skipping deleted package {package_id}@{version}; installed copies are unaffected.")
+            continue
         if manifest["publisher"].lower() in suspended_publishers or (package_id, version) in withdrawn:
             print(f"Skipping suspended or withdrawn package {package_id}@{version}.")
             continue
