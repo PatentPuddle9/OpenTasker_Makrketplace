@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generate the public catalogue from validated packages and trusted moderation records."""
+# Keep this module in the publish workflow so catalogue-policy CI exercises it with the deletion processor.
 
 from __future__ import annotations
 
