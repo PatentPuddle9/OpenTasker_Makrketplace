@@ -30,6 +30,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Compile Marketplace Python tools
+        run: |
+          python -m py_compile \
+            tools/build_catalog.py \
+            tools/validate_pr.py \
+            tools/validate_marketplace.py \
+            tools/process_deletion_request.py
+
       - name: Build and publish from the latest main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
