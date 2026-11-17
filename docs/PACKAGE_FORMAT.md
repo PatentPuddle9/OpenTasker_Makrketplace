@@ -60,7 +60,7 @@ The following optional fields control how the package appears in the OpenTasker 
 
 - `description`: Full listing description (up to 4000 characters). Keep `summary` short and scannable.
 - `tags`: Up to 10 plain-text search tags, such as `["home", "lighting", "notifications"]`.
-- `icon`: A built-in OpenTasker icon key, such as `"bolt"`, `"house-01"`, or `"volume-max"`. Custom uploaded images are not accepted.
+- `icon`: A built-in OpenTasker icon key, such as `"bolt"`, `"house-01"`, or `"volume-max"`. Custom images are not accepted as listing-decoration icons; distribute reusable PNGs as a separate `Custom Widget Icons` package.
 - `iconColor` and `backgroundColor`: Six-digit hex colors, with or without a leading `#`.
 - `gradient`: Whether the listing icon background uses a gradient.
 - `shape`: One of `squircle`, `rounded_square`, `circle`, `square`, or `teardrop`.
