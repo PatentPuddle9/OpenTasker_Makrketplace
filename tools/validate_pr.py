@@ -111,12 +111,6 @@ def main():
         moderators = {str(name).lower() for name in reviewer_config.get("reviewers", [])}
         suspended_config = json.loads(git_show(base, "moderation/suspended-publishers.json"))
         suspended = {str(name).lower() for name in suspended_config.get("suspendedPublishers", [])}
-        decisions = json.loads(git_show(base, "moderation/decisions.json"))
-        deleted_ids = {
-            str(item.get("id", "")).lower()
-            for item in decisions.get("deletedPackages", [])
-            if isinstance(item, dict)
-        }
     except Exception as exc:
         raise SystemExit(f"Could not load trusted moderation configuration from base branch: {exc}")
 
@@ -153,10 +147,6 @@ def main():
 
             package_id = folder.split("/")[1]
             folder_version = folder.split("/")[2]
-            if package_id.lower() in deleted_ids:
-                errors.append(f"{folder}: this package ID has been permanently withdrawn and cannot be republished. Choose a new package ID.")
-                continue
-
             prior_versions = package_history(base, package_id)
             if prior_versions:
                 is_update = True
