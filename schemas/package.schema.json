@@ -221,6 +221,20 @@
     },
     "assetFile": {
       "const": "icon.png"
+    },
+    "themeMode": {
+      "enum": [
+        "system",
+        "dark",
+        "amoled",
+        "light",
+        "high_contrast",
+        "dynamic"
+      ]
+    },
+    "themeAccentColor": {
+      "type": "string",
+      "pattern": "^#[A-Fa-f0-9]{6}$"
     }
   }
 }
