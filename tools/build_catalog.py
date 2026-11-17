@@ -109,15 +109,21 @@ def main():
     entries = []
     for manifest_path in sorted(Path("packages").glob("*/*/manifest.json")):
         folder = manifest_path.parent
+        # A permanent deletion tombstone removes every version from the catalogue while
+        # preserving the immutable files for users who already imported the bundle. Skip
+        # validation of withdrawn content so a stale legacy package cannot block publication.
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        package_id, version = manifest["id"], manifest["version"]
+        if package_id.lower() in deleted_ids:
+            print(f"Skipping deleted package {package_id}@{version}; installed copies are unaffected.")
+            continue
+
         result = validate_package(folder)
         if result["errors"]:
             raise SystemExit(f"Refusing to publish invalid package {folder}: " + "; ".join(result["errors"]))
 
         manifest = result["manifest"]
         package_id, version = manifest["id"], manifest["version"]
-        if package_id.lower() in deleted_ids:
-            print(f"Skipping deleted package {package_id}@{version}; installed copies are unaffected.")
-            continue
         if manifest["publisher"].lower() in suspended_publishers or (package_id, version) in withdrawn:
             print(f"Skipping suspended or withdrawn package {package_id}@{version}.")
             continue
