@@ -215,6 +215,12 @@
       "type": "string",
       "maxLength": 300,
       "pattern": "^(?:https://.+)?$"
+    },
+    "previewFile": {
+      "const": "preview.png"
+    },
+    "assetFile": {
+      "const": "icon.png"
     }
   }
 }
