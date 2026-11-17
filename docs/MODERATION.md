@@ -14,7 +14,7 @@ High-risk packages remain visibly high risk after approval. The catalogue stores
 
 Edit .github/marketplace-reviewers.json in a moderator-authored pull request to add or remove trusted reviewers. The validator reads the allowlist from the pull request's base commit, so a contributor cannot grant themselves reviewer status in the same pull request.
 
-Every update to an already-published package requires a formal GitHub APPROVED review from a trusted moderator other than the package publisher, regardless of the new version's computed risk level. The comment-based /approve-high-risk command does not satisfy this update requirement. The review workflow re-runs validation when a review is submitted or dismissed.
+Every update to an already-published package requires a formal GitHub APPROVED review from another repository collaborator with write access, regardless of the new version's computed risk level. The package publisher cannot approve their own update. High-risk updates also need the additional trusted-moderator approval described below. The comment-based /approve-high-risk command does not satisfy the independent update-review requirement. The review workflow re-runs validation when a review is submitted or dismissed.
 
 For a high-risk first publication, a trusted reviewer can submit an APPROVE review or comment /approve-high-risk. A later /revoke-high-risk comment cancels a prior comment approval. A package is not published as reviewed unless the publisher workflow can confirm a trusted approval.
 
