@@ -13,7 +13,7 @@ A new package starts at **1.0.0**. Every update must use a new, immutable versio
 - Minor: 1.1.2 → 1.2.0
 - Major: 1.1.2 → 2.0.0
 
-Skipping values, changing more than one part at once, reusing a version, or moving backwards is rejected. Every update pull request requires a formal APPROVED review from a trusted Marketplace moderator other than the publisher, even when the updated package is low risk.
+Skipping values, changing more than one part at once, reusing a version, or moving backwards is rejected. Every update pull request requires a formal APPROVED review from another repository collaborator with write access. The publisher cannot approve their own update. High-risk updates also require trusted-moderator approval.
 
 ## Example manifest
 
