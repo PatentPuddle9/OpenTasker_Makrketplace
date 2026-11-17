@@ -47,6 +47,22 @@ Skipping values, changing more than one part at once, reusing a version, or movi
 
 This is an illustrative structure. The JSON Pointer paths must match the actual fields in your exported bundle. The publisher value must match the GitHub login that opened the pull request.
 
+## Listing appearance and discovery
+
+The following optional fields control how the package appears in the OpenTasker Marketplace. Older manifests remain valid and receive the default bolt icon and purple app-icon styling.
+
+- `description`: Full listing description (up to 4000 characters). Keep `summary` short and scannable.
+- `tags`: Up to 10 plain-text search tags, such as `["home", "lighting", "notifications"]`.
+- `icon`: A built-in OpenTasker icon key, such as `"bolt"`, `"house-01"`, or `"volume-max"`. Custom uploaded images are not accepted.
+- `iconColor` and `backgroundColor`: Six-digit hex colors, with or without a leading `#`.
+- `gradient`: Whether the listing icon background uses a gradient.
+- `shape`: One of `squircle`, `rounded_square`, `circle`, `square`, or `teardrop`.
+- `changelog`: Notes describing what changed in this version (up to 2000 characters).
+- `documentationUrl`: Optional HTTPS link to setup instructions or documentation.
+
+These are presentation and discovery fields only. They do not change the bundle's permissions, risk classification, or import behavior. The app always verifies the signed catalogue and bundle hash, and imported profiles still start disabled.
+
+
 ## Replace personal values in bundle.json
 
 The bundle must contain the placeholder rather than a real value. For the example above, the two fields should contain:
