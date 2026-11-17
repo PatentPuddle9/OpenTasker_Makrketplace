@@ -224,9 +224,6 @@
     },
     "assetFile": {
       "const": "icon.png"
-    },
-    "assetFile": {
-      "const": "icon.png"
     }
   }
 }
