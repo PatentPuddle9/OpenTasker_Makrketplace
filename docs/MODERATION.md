@@ -24,15 +24,15 @@ Signed-in Marketplace users can submit one 1–5 star rating per package. A late
 
 Only users listed in .github/marketplace-reviewers.json may feature or unfeature a package. Maintainers use the OpenTasker Marketplace package details screen; the app submits a structured request and the workflow validates the issue author against the trusted reviewer list before changing moderation/featured-packages.json. Featured state is published in the signed catalogue and appears in the app's Featured filter.
 
-Deleting a package also clears its ratings and featured state. A new package that reuses the ID starts with no inherited reviews or featured placement.
+Deleting a package also clears its ratings, written reviews, helpful votes, featured state, and download statistics. A new package that reuses the ID starts with no inherited community data.
 
 ## Reports, deletion, and enforcement
 
 Package reports create GitHub Issues, add the package-report label, assign the issue to PatentPuddle9, and mention the owner. Keep the review record in the issue.
 
-A publisher can delete one of their own packages from the OpenTasker app's My Packages screen. The app opens a structured deletion request issue. The deletion workflow verifies that the issue author matches the publisher recorded in every version manifest, then adds a permanent package-ID tombstone to moderation/decisions.json. No human review is required. The signed catalogue stops listing all versions of that package ID after it is rebuilt.
+A publisher can delete one of their own packages from the OpenTasker app's My Packages screen. The app opens a structured deletion request issue. The deletion workflow verifies that the issue author matches the publisher recorded in every version manifest, then removes all package-version files and frees the package ID. The signed catalogue stops listing the package after it is rebuilt.
 
-Deletion does not delete historical package files and does not uninstall or modify copies already imported by users. Existing installs remain in place; new Marketplace installs are no longer offered. A deleted package ID cannot be reused. This is intentionally different from a security takedown: moderators can separately withdraw a specific version or suspend a publisher.
+Deletion does not uninstall or modify copies already imported by users. A reused package ID starts a fresh generation at 1.0.0 with no inherited ratings, reviews, helpful votes, featured status, or download statistics. This is intentionally different from a security takedown: moderators can separately withdraw a specific version or suspend a publisher.
 
 A moderator can dismiss a report, request a correction, mark a package version as withdrawn in moderation/decisions.json, suspend a publisher in moderation/suspended-publishers.json, or restore a package or publisher after investigation. Only moderators may edit moderation decisions directly.
 
@@ -45,3 +45,12 @@ In GitHub repository Settings > Rules > Rulesets, protect main:
 - Do not allow bypass for ordinary contributors.
 
 Keep trusted reviewers and moderation files editable only by maintainers. Do not grant contributors Actions secrets or write access merely so they can submit packages.
+
+
+## Written reviews, helpful votes, and install analytics
+
+Signed-in users can publish one review per package and edit it later. The processor validates the package, prevents publishers from reviewing their own listings, limits the review title to 100 characters and body to 1,200 characters, and rejects likely contact details or credentials. Each account can mark another user's review helpful once; self-votes are rejected.
+
+Install events are submitted only by users signed in through the Android app. The processor verifies that the reported package version exists and counts at most one event per GitHub account/package/day. Catalogue fields include total events, unique account count, and a rolling seven-day count. These metrics are install events, not a claim of unique devices or people. Guest users are not tracked.
+
+Reviews and download data are stored under moderation metadata, not inside package bundles. The signed catalogue contains the displayable review and aggregate information consumed by the app. When a package is deleted and its ID is released, these records are cleared for that package ID.

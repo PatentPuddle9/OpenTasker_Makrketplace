@@ -66,8 +66,22 @@ The following optional fields control how the package appears in the OpenTasker 
 - `shape`: One of `squircle`, `rounded_square`, `circle`, `square`, or `teardrop`.
 - `changelog`: Notes describing what changed in this version (up to 2000 characters).
 - `documentationUrl`: Optional HTTPS link to setup instructions or documentation.
+- `faqs`: Up to 10 entries shaped as `{"question":"...","answer":"..."}`; questions are limited to 160 characters and answers to 1,200.
+- `dependencies`: Up to 10 package requirements shaped as `{"id":"package-id","minimumVersion":"1.2.3","optional":false}`. IDs must be valid and cannot refer to the package itself.
+- `screenshots`: Optional list of up to 4 additional PNGs stored at `screenshots/01.png` through `screenshots/99.png`. Each file must be a valid PNG no larger than 2 MB and no dimension larger than 2048 × 2048. The signed catalogue records the SHA-256 hash for each screenshot; OpenTasker verifies it before display.
+
 
 These are presentation and discovery fields only. They do not change the bundle's permissions, risk classification, or import behavior. The app always verifies the signed catalogue and bundle hash, and imported profiles still start disabled.
+
+## Discovery, community reviews, and analytics
+
+The signed catalogue includes the package publication timestamp, review summary and content, download totals, unique installer count, and downloads from the last seven days. The app uses those signed values for Recommended, Trending, Top Rated, Newest, and Most Downloaded sorting. A package's popularity metrics are not a substitute for its risk and review indicators.
+
+Signed-in users can submit one written review per package and update it later. Reviews have a title (up to 100 characters) and body (up to 1,200 characters). A user cannot review their own package or mark their own review helpful. Reviews are public and linked to the reviewer's GitHub account; do not include private contact information or credentials.
+
+Install analytics are opt-in: the app submits an install event only for a user signed in with GitHub. Events are deduplicated to one count per account/package/day. Guests can install packages without analytics. These are install events, not guaranteed unique device or human counts.
+
+Collections are private to the device and stored locally. They do not sync to GitHub or become part of a package.
 
 ## Additional Marketplace package types
 
