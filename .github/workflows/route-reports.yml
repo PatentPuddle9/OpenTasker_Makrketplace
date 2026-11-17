@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   route:
-    if: contains(github.event.issue.title, '[Package report]') || contains(github.event.issue.labels.*.name, 'package-report')
+    if: contains(github.event.issue.title, '[Package report]') || contains(github.event.issue.title, '[Marketplace review report]') || contains(github.event.issue.labels.*.name, 'package-report')
     runs-on: ubuntu-latest
     steps:
       - name: Assign and notify marketplace owner
@@ -25,5 +25,5 @@ jobs:
             await github.rest.issues.createComment({
               ...context.repo,
               issue_number,
-              body: "@PatentPuddle9 A marketplace package report needs your review. Please inspect the package ID/version and decide whether it should remain published, be corrected, or be suspended."
+              body: context.payload.issue.title.includes("[Marketplace review report]") ? "@PatentPuddle9 A Marketplace review report needs your review. Check the linked review, reporter history, and whether it should be hidden or restored." : "@PatentPuddle9 A Marketplace package report needs your review. Please inspect the package ID/version and decide whether it should remain published, be corrected, or be suspended."
             });

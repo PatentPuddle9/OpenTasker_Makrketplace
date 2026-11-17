@@ -54,3 +54,21 @@ Signed-in users can publish one review per package and edit it later. The proces
 Install events are submitted only by users signed in through the Android app. The processor verifies that the reported package version exists and counts at most one event per GitHub account/package/day. Catalogue fields include total events, unique account count, and a rolling seven-day count. These metrics are install events, not a claim of unique devices or people. Guest users are not tracked.
 
 Reviews and download data are stored under moderation metadata, not inside package bundles. The signed catalogue contains the displayable review and aggregate information consumed by the app. When a package is deleted and its ID is released, these records are cleared for that package ID.
+
+
+## Review moderation commands
+
+Trusted reviewers may use the following exact commands as comments on any issue in this repository. The workflow verifies the comment author's login against the trusted reviewer allowlist and updates moderation metadata through a bot commit. Ordinary users cannot invoke these commands.
+
+- `/hide-review <package-id> <review-user-id>` hides a public review from the next signed catalogue.
+- `/restore-review <package-id> <review-user-id>` restores a previously hidden review.
+- `/quarantine <package-id> <version> [reason]` removes one package version from new catalogue installs while preserving its source and audit trail.
+- `/restore-package <package-id> <version>` removes the quarantine decision and returns a valid package version to the catalogue.
+- `/suspend-publisher <github-login>` withholds all of a publisher's packages from the catalogue.
+- `/unsuspend-publisher <github-login>` removes the publisher suspension.
+
+Three independent review reports temporarily mark a review as under review, which withholds it from the public catalogue until a moderator restores or hides it. Reports do not automatically remove a package or suspend its publisher. Quarantining affects new Marketplace installs only; existing user imports remain unchanged.
+
+## Package file restrictions
+
+Package pull requests may contain only `manifest.json`, `bundle.json`, the generated `preview.png`, an optional `icon.png`, and up to four `screenshots/NN.png` files. Each file is limited to 8 MB, the complete version is limited to 20 MB, and extra payload types are rejected. Package PR validation uses trusted validators from the base branch and never executes submitted package code.
