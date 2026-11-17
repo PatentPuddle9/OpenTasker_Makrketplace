@@ -1,0 +1,32 @@
+name: Process Marketplace ratings and featured packages
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: marketplace-community-requests
+  cancel-in-progress: false
+
+jobs:
+  process:
+    name: Verify and process community request
+    if: github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted Marketplace main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Process rating or featured-package request
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: \${{ github.repository }}
+          GITHUB_EVENT_PATH: \${{ github.event_path }}
+        run: python tools/process_marketplace_community.py
