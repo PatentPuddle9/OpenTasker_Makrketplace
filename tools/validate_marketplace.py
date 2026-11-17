@@ -239,7 +239,16 @@ def validate_visual_package(folder: Path, manifest: dict, payload: dict, bundle_
             errors.append("Custom Widget Icon recolorable must be a boolean.")
         if manifest.get("assetFile") != "icon.png":
             errors.append("Custom Widget Icon package must declare assetFile=icon.png.")
-        errors.extend(validate_png(folder / "icon.png", 15 * 1024 * 1024, "icon.png"))
+        icon_path = folder / "icon.png"
+        errors.extend(validate_png(icon_path, 15 * 1024 * 1024, "icon.png"))
+        if icon_path.is_file() and icon_path.stat().st_size >= 24:
+            with icon_path.open("rb") as icon_file:
+                icon_header = icon_file.read(24)
+            if icon_header[:8] == b"\\x89PNG\\r\\n\\x1a\\n" and icon_header[12:16] == b"IHDR":
+                icon_width = int.from_bytes(icon_header[16:20], "big")
+                icon_height = int.from_bytes(icon_header[20:24], "big")
+                if icon_width != icon_height:
+                    errors.append("Custom Widget Icon asset must be square.")
 
     return {
         "manifest": manifest,
