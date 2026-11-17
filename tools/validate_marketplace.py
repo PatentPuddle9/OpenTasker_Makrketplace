@@ -205,6 +205,8 @@ def validate_visual_package(folder: Path, manifest: dict, payload: dict, bundle_
                             errors.append(f"{label} must not contain a publisher's local Action reference.")
                         if element.get("imageUri", ""):
                             errors.append(f"{label} contains a private image URI; package images must be bundled rather than linked to device storage.")
+                        if str(element.get("icon", "")).startswith("custom:"):
+                            errors.append(f"{label} references a locally stored custom icon; use a built-in icon so the Widget Display works on other devices.")
                         for key, minimum, maximum in (
                             ("xDp", 0, 1000), ("yDp", 0, 1000),
                             ("widthDp", 1, 1000), ("heightDp", 1, 1000),
@@ -220,7 +222,8 @@ def validate_visual_package(folder: Path, manifest: dict, payload: dict, bundle_
                     continue
                 for color_key in ("backgroundColor", "textColor", "accentColor"):
                     color = state.get(color_key)
-                    if not isinstance(color, int) or not 0 <= color <= 0xFFFFFFFF:
+                    # Android serializes ARGB colors through signed Kotlin Int values.
+                    if not isinstance(color, int) or not -0x80000000 <= color <= 0xFFFFFFFF:
                         errors.append(f"Widget Display state {state_index + 1} has an invalid {color_key}.")
     elif category == "Themes":
         mode = payload.get("themeMode")
