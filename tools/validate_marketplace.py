@@ -124,6 +124,132 @@ def external_hosts(bundle):
     return found
 
 
+def validate_png(path: Path, max_bytes: int, label: str, max_dimension: int = 2048):
+    if not path.is_file():
+        return [f"{label} is missing."]
+    size = path.stat().st_size
+    if size < 24 or size > max_bytes:
+        return [f"{label} must be a PNG between 24 bytes and {max_bytes} bytes."]
+    with path.open("rb") as image:
+        header = image.read(24)
+    if header[:8] != b"\\x89PNG\\r\\n\\x1a\\n" or header[12:16] != b"IHDR":
+        return [f"{label} must be a valid PNG image."]
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    if width < 1 or height < 1 or width > max_dimension or height > max_dimension:
+        return [f"{label} dimensions must be between 1 and {max_dimension} pixels."]
+    return []
+
+
+def validate_visual_package(folder: Path, manifest: dict, payload: dict, bundle_path: Path):
+    category = str(manifest.get("category", ""))
+    errors = []
+    preview_file = manifest.get("previewFile")
+    if preview_file != "preview.png":
+        errors.append("visual Marketplace packages must include previewFile=preview.png.")
+    errors.extend(validate_png(folder / "preview.png", 2 * 1024 * 1024, "preview.png"))
+    if manifest.get("requiredInputs", []) not in ([], None):
+        errors.append("visual Marketplace packages cannot declare automation setup inputs.")
+    if manifest.get("externalDestinations", []) not in ([], None):
+        errors.append("visual Marketplace packages cannot declare external service destinations.")
+
+    package_type = payload.get("type")
+    expected = {
+        "Widget Displays": "widget_display",
+        "Themes": "theme",
+        "Custom Widget Icons": "custom_widget_icon",
+    }.get(category)
+    if package_type != expected or payload.get("schemaVersion") != 1:
+        errors.append(f"bundle.json must contain schemaVersion=1 and type={expected!r} for category {category!r}.")
+        return {
+            "manifest": manifest,
+            "bundle": payload,
+            "riskLevel": "low",
+            "actionIds": [],
+            "unknownActionIds": [],
+            "bundleSha256": hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
+            "errors": errors,
+            "warnings": [],
+        }
+
+    if category == "Widget Displays":
+        config = payload.get("config")
+        if not isinstance(config, dict):
+            errors.append("Widget Display payload must contain a config object.")
+        else:
+            states = config.get("states")
+            width = config.get("canvasWidthDp")
+            height = config.get("canvasHeightDp")
+            if not isinstance(width, int) or not 110 <= width <= 1000:
+                errors.append("Widget Display canvasWidthDp must be between 110 and 1000.")
+            if not isinstance(height, int) or not 80 <= height <= 1000:
+                errors.append("Widget Display canvasHeightDp must be between 80 and 1000.")
+            if not isinstance(states, list) or not 1 <= len(states) <= 75:
+                errors.append("Widget Display must contain between 1 and 75 states.")
+            else:
+                allowed_elements = {"TEXT", "IMAGE", "BUTTON", "SHORTCUT", "ICON", "PROGRESS", "DIVIDER", "SPACER"}
+                for state_index, state in enumerate(states):
+                    if not isinstance(state, dict):
+                        errors.append(f"Widget Display state {state_index + 1} is invalid.")
+                        continue
+                    elements = state.get("elements", [])
+                    if not isinstance(elements, list) or len(elements) > 8:
+                        errors.append(f"Widget Display state {state_index + 1} can contain at most 8 elements.")
+                        continue
+                    for element_index, element in enumerate(elements):
+                        label = f"Widget Display state {state_index + 1} element {element_index + 1}"
+                        if not isinstance(element, dict) or element.get("type") not in allowed_elements:
+                            errors.append(f"{label} has an unsupported element type.")
+                            continue
+                        if element.get("actionProfileId") is not None:
+                            errors.append(f"{label} must not contain a publisher's local Action reference.")
+                        if element.get("imageUri", ""):
+                            errors.append(f"{label} contains a private image URI; package images must be bundled rather than linked to device storage.")
+                        for key, minimum, maximum in (
+                            ("xDp", 0, 1000), ("yDp", 0, 1000),
+                            ("widthDp", 1, 1000), ("heightDp", 1, 1000),
+                            ("textSizeSp", 1, 96), ("progress", 0, 100),
+                        ):
+                            value = element.get(key, 0)
+                            if not isinstance(value, int) or not minimum <= value <= maximum:
+                                errors.append(f"{label} has an invalid {key} value.")
+                        if len(str(element.get("text", ""))) > 1000:
+                            errors.append(f"{label} text must be 1000 characters or fewer.")
+            for state_index, state in enumerate(states if isinstance(states, list) else []):
+                if not isinstance(state, dict):
+                    continue
+                for color_key in ("backgroundColor", "textColor", "accentColor"):
+                    color = state.get(color_key)
+                    if not isinstance(color, int) or not 0 <= color <= 0xFFFFFFFF:
+                        errors.append(f"Widget Display state {state_index + 1} has an invalid {color_key}.")
+    elif category == "Themes":
+        mode = payload.get("themeMode")
+        accent = str(payload.get("accentColor", ""))
+        if mode not in {"system", "dark", "amoled", "light", "high_contrast", "dynamic"}:
+            errors.append("Theme package has an unsupported themeMode.")
+        if not re.fullmatch(r"#[A-Fa-f0-9]{6}", accent):
+            errors.append("Theme package accentColor must be a six-digit hex color.")
+    elif category == "Custom Widget Icons":
+        if str(payload.get("name", "")).strip() == "" or len(str(payload.get("name", ""))) > 48:
+            errors.append("Custom Widget Icon name must be between 1 and 48 characters.")
+        if not isinstance(payload.get("recolorable", False), bool):
+            errors.append("Custom Widget Icon recolorable must be a boolean.")
+        if manifest.get("assetFile") != "icon.png":
+            errors.append("Custom Widget Icon package must declare assetFile=icon.png.")
+        errors.extend(validate_png(folder / "icon.png", 15 * 1024 * 1024, "icon.png"))
+
+    return {
+        "manifest": manifest,
+        "bundle": payload,
+        "riskLevel": "low",
+        "actionIds": [],
+        "unknownActionIds": [],
+        "bundleSha256": hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
+        "errors": errors,
+        "warnings": [],
+    }
+
+
 def validate_package(folder: Path):
     errors, warnings = [], []
     manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
@@ -182,6 +308,10 @@ def validate_package(folder: Path):
     reserved = {"riskLevel", "reviewStatus", "reviewedAt", "reviewedBy", "signature", "moderatorApproval"}
     if reserved.intersection(manifest):
         errors.append("risk and review metadata are computed by the repository, not submitted by package creators.")
+
+    category = str(manifest.get("category", ""))
+    if category in {"Widget Displays", "Themes", "Custom Widget Icons"}:
+        return validate_visual_package(folder, manifest, bundle, bundle_path)
 
     if not isinstance(bundle, dict) or not isinstance(bundle.get("tasks", []), list):
         errors.append("bundle.json must be a valid OpenTasker bundle with a tasks array.")
