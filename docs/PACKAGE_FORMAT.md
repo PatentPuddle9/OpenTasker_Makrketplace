@@ -69,6 +69,58 @@ The following optional fields control how the package appears in the OpenTasker 
 
 These are presentation and discovery fields only. They do not change the bundle's permissions, risk classification, or import behavior. The app always verifies the signed catalogue and bundle hash, and imported profiles still start disabled.
 
+## Additional Marketplace package types
+
+Marketplace packages may also use these categories. They are data-only formats; no scripts, native code, APKs, or executable plugins are accepted.
+
+All three visual package types include a generated `preview.png` (PNG, at most 2 MB, up to 2048 × 2048). The OpenTasker publisher creates this image from the exact submitted payload, includes it in the package pull request, and the reviewer can open the image directly in GitHub before merging. The signed catalogue records the preview path and SHA-256 checksum, so the app can verify it before displaying it.
+
+### Widget Displays
+
+Use category `Widget Displays`. The `bundle.json` contains:
+
+    {
+      "schemaVersion": 1,
+      "type": "widget_display",
+      "config": {
+        "canvasWidthDp": 320,
+        "canvasHeightDp": 200,
+        "states": []
+      }
+    }
+
+The `config` object uses OpenTasker's Widget Display format, including its states, colors, and elements. The validator restricts the canvas to 110–1000 dp, up to 75 states, and up to 8 elements per state. Publisher-local Action references are removed before submission; recipients choose an installed Widget Display and connect their own Actions after applying the layout. Locally stored custom-icon references are not portable and are rejected. Widget Display packages that contain private `content://` image URIs are also rejected; use a layout without those private images.
+
+### Themes
+
+Use category `Themes`. The `bundle.json` contains:
+
+    {
+      "schemaVersion": 1,
+      "type": "theme",
+      "themeMode": "amoled",
+      "accentColor": "#B69CFF"
+    }
+
+Supported modes are `system`, `dark`, `amoled`, `light`, `high_contrast`, and `dynamic`. The app derives the coordinated Material color shades from the accent color when the preset is installed. The catalogue also exposes `themeMode` and `themeAccentColor` for the listing details.
+
+### Custom Widget Icons
+
+Use category `Custom Widget Icons`. The `bundle.json` contains:
+
+    {
+      "schemaVersion": 1,
+      "type": "custom_widget_icon",
+      "name": "My custom icon",
+      "recolorable": false
+    }
+
+Include `assetFile: "icon.png"` in the manifest and place the square PNG at `icon.png` beside `manifest.json` and `bundle.json`. Icons may be up to 2048 × 2048 pixels and 15 MB. Installing the package adds the PNG to the recipient's Custom icon library. The package is still data-only; it cannot include executable content.
+
+### Review and installation
+
+Widget Displays, Themes, and Custom Widget Icons use the same pull-request, validation, signed-catalogue, and merge process as Actions and Shortcut Widgets. Passing automated validation is not a manual security audit: the maintainer must inspect the pull request (including `preview.png`) before merging. The preview image is a visual aid; the app separately verifies the signed catalogue and each downloaded asset's checksum before use.
+
 
 ## Replace personal values in bundle.json
 
