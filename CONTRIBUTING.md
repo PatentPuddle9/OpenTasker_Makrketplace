@@ -44,7 +44,7 @@ Do not claim that a service is safe simply because it uses HTTPS or is hosted in
 
 Open a pull request with a clear description of what the package does and why each sensitive capability is needed. Visual packages must include the generated preview.png; Custom Widget Icons must also include the square icon.png asset. The app-generated pull request body embeds the PNG preview so maintainers can inspect the submitted appearance in GitHub.
 
-GitHub Actions runs automated checks. Low- and medium-risk first publications can pass without manual content review. High-risk first publications require approval from a trusted moderator listed in .github/marketplace-reviewers.json.
+GitHub Actions runs automated checks for every package type. Low- and medium-risk first publications do not require a separate trusted-moderator approval, but a maintainer must still inspect the pull request and merge it before the package appears in the signed catalogue. High-risk first publications additionally require approval from a trusted moderator listed in .github/marketplace-reviewers.json.
 
 Every update to an existing package requires a formal APPROVED GitHub review from another repository collaborator with write access, regardless of risk. The publisher cannot approve their own update, and a comment command is not a substitute for this review. High-risk updates also require trusted-moderator approval. The app creates each update as a new immutable version and opens a pull request; the update does not appear in the catalogue until it is approved and merged.
 
