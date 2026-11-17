@@ -9,12 +9,14 @@ Create a new versioned directory:
 packages/<package-id>/<version>/
   manifest.json
   bundle.json
+  preview.png       # required for Widget Displays, Themes, and Custom Widget Icons
+  icon.png          # required only for Custom Widget Icons
 
 Use a lowercase package ID containing letters, numbers, dots, underscores, or hyphens. A new package starts at version 1.0.0. Do not overwrite an existing published version; submit a new version directory instead.
 
 For an update, increase exactly one semantic-version component by one step. From 1.1.2, the only valid next versions are 1.1.3, 1.2.0, and 2.0.0. Skipped or combined increments are rejected.
 
-The bundle must be a normal OpenTasker JSON bundle produced by OpenTasker. It may contain actions, profiles, variables, and scenes. It must not contain arbitrary code, scripts, APKs, native libraries, executable files, or plugin binaries.
+Actions and Shortcut Widgets use a normal OpenTasker JSON bundle produced by OpenTasker. The Marketplace also accepts data-only Widget Display layouts, theme presets, and Custom Widget Icon PNGs using the formats in docs/PACKAGE_FORMAT.md. No package type may contain arbitrary code, scripts, APKs, native libraries, executable files, or plugin binaries.
 
 See [docs/PACKAGE_FORMAT.md](docs/PACKAGE_FORMAT.md) for a complete manifest example and input placeholder format.
 
@@ -40,13 +42,13 @@ Do not claim that a service is safe simply because it uses HTTPS or is hosted in
 
 ## Review and publishing
 
-Open a pull request with a clear description of what the automation does and why each sensitive capability is needed.
+Open a pull request with a clear description of what the package does and why each sensitive capability is needed. Visual packages must include the generated preview.png; Custom Widget Icons must also include the square icon.png asset. The app-generated pull request body embeds the PNG preview so maintainers can inspect the submitted appearance in GitHub.
 
 GitHub Actions runs automated checks. Low- and medium-risk first publications can pass without manual content review. High-risk first publications require approval from a trusted moderator listed in .github/marketplace-reviewers.json.
 
 Every update to an existing package requires a formal APPROVED GitHub review from another repository collaborator with write access, regardless of risk. The publisher cannot approve their own update, and a comment command is not a substitute for this review. High-risk updates also require trusted-moderator approval. The app creates each update as a new immutable version and opens a pull request; the update does not appear in the catalogue until it is approved and merged.
 
-A successful CI check does not publish a package by itself. A maintainer must merge the pull request. The publish workflow then rebuilds and signs the catalogue.
+A successful CI check does not publish a package by itself. A maintainer must inspect the pull request and merge it. For visual packages, inspect preview.png as well as the structured package data. The publish workflow then rebuilds and signs the catalogue.
 
 Never add yourself to the moderator list in the same contribution that you are asking to be reviewed. Changes to reviewer, moderation, and policy files are restricted to existing moderators.
 
@@ -54,7 +56,7 @@ Never add yourself to the moderator list in the same contribution that you are a
 
 Publishers can use **Marketplace → My Packages** in OpenTasker to submit an update or request deletion. Updates use the new-version review process above.
 
-Deletion does not require review. The app creates a structured request issue, and GitHub Actions verifies that the issue author is the publisher recorded in the package manifests before adding a permanent tombstone. All versions disappear from the signed catalogue after it is rebuilt. Historical bundle files remain in the repository, and copies already installed by users remain installed and unchanged. Deleted package IDs cannot be reused.
+Deletion does not require review. The app creates a structured request issue, and GitHub Actions verifies that the issue author is the publisher recorded in the active package manifests. The processor removes the old package files and records the deletion for audit history. The ID is then free for a new package starting at 1.0.0. Copies already installed by users remain installed and unchanged.
 
 ## Reports and takedowns
 
