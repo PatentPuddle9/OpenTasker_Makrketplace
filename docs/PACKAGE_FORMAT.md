@@ -15,6 +15,13 @@ A new package starts at **1.0.0**. Every update must use a new, immutable versio
 
 Skipping values, changing more than one part at once, reusing a version, or moving backwards is rejected. Every update pull request requires a formal APPROVED review from another repository collaborator with write access. The publisher cannot approve their own update. High-risk updates also require trusted-moderator approval.
 
+## Deleting and reusing a package ID
+
+When a publisher's deletion request is processed, the Marketplace removes every version directory for that package ID from the repository. The deletion record remains in `moderation/decisions.json` for audit history, but it does not reserve the ID. Any creator can then submit a new package using that ID, starting again at **1.0.0**. The new listing has a fresh publisher and version history; the previous publisher cannot update or delete the new package unless they are its publisher too.
+
+Previously imported automations remain installed on users' devices. Removing the Marketplace source files only prevents new downloads of the withdrawn versions.
+
+
 ## Example manifest
 
     {
