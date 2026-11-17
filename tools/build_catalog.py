@@ -148,6 +148,8 @@ def main():
             "shape": manifest.get("shape", "squircle"),
             "changelog": manifest.get("changelog", ""),
             "documentationUrl": manifest.get("documentationUrl", ""),
+            "themeMode": manifest.get("themeMode", ""),
+            "themeAccentColor": manifest.get("themeAccentColor", ""),
             "category": manifest["category"],
             "publisher": manifest["publisher"],
             "version": version,
