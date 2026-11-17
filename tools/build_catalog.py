@@ -112,6 +112,11 @@ def main():
         (item.get("id"), item.get("version"))
         for item in decisions.get("withdrawnPackages", [])
     }
+    quarantined = {
+        (item.get("id"), item.get("version"))
+        for item in decisions.get("quarantinedPackages", [])
+        if isinstance(item, dict)
+    }
     ratings_data = json.loads(Path("moderation/ratings.json").read_text(encoding="utf-8"))
     ratings_by_package = {}
     for rating in ratings_data.get("ratings", []):
@@ -133,7 +138,14 @@ def main():
         user_id = review.get("userId")
         title = str(review.get("title", "")).strip()
         body = str(review.get("body", "")).strip()
-        if package_id and isinstance(user_id, int) and user_id > 0 and title and body:
+        if (
+            package_id
+            and isinstance(user_id, int)
+            and user_id > 0
+            and title
+            and body
+            and str(review.get("moderationStatus", "visible")).casefold() == "visible"
+        ):
             reviews_by_package.setdefault(package_id, []).append(review)
     download_data = json.loads(Path("moderation/download-stats.json").read_text(encoding="utf-8"))
     download_stats = download_data.get("packages", {})
@@ -151,8 +163,12 @@ def main():
 
         manifest = result["manifest"]
         package_id, version = manifest["id"], manifest["version"]
-        if manifest["publisher"].lower() in suspended_publishers or (package_id, version) in withdrawn:
-            print(f"Skipping suspended or withdrawn package {package_id}@{version}.")
+        if (
+            manifest["publisher"].lower() in suspended_publishers
+            or (package_id, version) in withdrawn
+            or (package_id, version) in quarantined
+        ):
+            print(f"Skipping suspended, withdrawn, or quarantined package {package_id}@{version}.")
             continue
 
         if result["riskLevel"] == "high":
@@ -173,6 +189,12 @@ def main():
         rating_votes = ratings_by_package.get(package_id, {})
         rating_count = len(rating_votes)
         rating_average = round(sum(rating_votes.values()) / rating_count, 2) if rating_count else 0.0
+        rating_distribution = {
+            str(stars): sum(1 for value in rating_votes.values() if value == stars)
+            for stars in range(1, 6)
+        }
+        stats = download_stats.get(package_id, {})
+        verified_installers = set(stats.get("uniqueUserIds", [])) if isinstance(stats, dict) else set()
         package_reviews = sorted(
             reviews_by_package.get(package_id, []),
             key=lambda item: str(item.get("updatedAt", item.get("createdAt", ""))),
@@ -188,9 +210,10 @@ def main():
             "updatedAt": str(item.get("updatedAt", "")),
             "helpfulCount": len(set(item.get("helpfulUserIds", []))),
             "helpfulUserIds": sorted(set(int(value) for value in item.get("helpfulUserIds", []) if str(value).isdigit())),
+            "verifiedInstaller": item.get("userId") in verified_installers,
+            "publisherResponse": item.get("publisherResponse") if isinstance(item.get("publisherResponse"), dict) else None,
         } for item in package_reviews]
         published_at = published_at_for(folder.as_posix())
-        stats = download_stats.get(package_id, {})
         daily_downloads = stats.get("daily", []) if isinstance(stats, dict) else []
         cutoff = (datetime.now(timezone.utc).date() - timedelta(days=6)).isoformat()
         weekly_downloads = sum(
@@ -219,7 +242,9 @@ def main():
             "ratingAverage": rating_average,
             "ratingCount": rating_count,
             "ratingVotes": dict(sorted(rating_votes.items())),
+            "ratingDistribution": rating_distribution,
             "reviews": public_reviews,
+            "reviewCount": len(package_reviews),
             "downloadCount": max(0, int(stats.get("totalDownloads", 0))) if isinstance(stats, dict) else 0,
             "uniqueInstallerCount": len(set(stats.get("uniqueUserIds", []))) if isinstance(stats, dict) else 0,
             "weeklyDownloads": weekly_downloads,
