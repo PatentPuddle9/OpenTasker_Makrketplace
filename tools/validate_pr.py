@@ -217,9 +217,9 @@ def main():
 
     print(f"Validated {len(package_folders)} package folder(s); computed highest risk: {highest_risk}.")
 
-    # Every edit to an already-published package requires a formal approval from a trusted,
-    # non-author moderator, regardless of the updated bundle's computed risk level. The legacy
-    # comment command remains available only for the existing high-risk first-publication path.
+    # Every edit to an already-published package requires a formal approval from a different
+    # repository collaborator with write access. High-risk updates additionally require a trusted
+    # moderator approval; the comment command cannot replace the independent update review.
     reviews = api(f"/repos/{repository}/pulls/{pr_number}/reviews?per_page=100")
     latest_reviews = latest_by_user(reviews, "submitted_at")
     approved = [
