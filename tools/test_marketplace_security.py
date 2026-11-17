@@ -9,7 +9,7 @@ import unittest
 import zlib
 from pathlib import Path
 
-from validate_marketplace import validate_png
+from validate_marketplace import validate_package_assets, validate_png
 
 
 def png_chunk(kind: bytes, payload: bytes) -> bytes:
@@ -76,6 +76,59 @@ class MarketplacePngSecurityTests(unittest.TestCase):
         errors = self.validate(sample_png(), max_bytes=32)
         self.assertTrue(errors)
         self.assertIn("between 45 bytes", errors[0])
+
+    def test_accepts_hashed_optional_image_asset_and_reference(self):
+        import hashlib
+
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            (folder / "assets").mkdir()
+            png = sample_png()
+            (folder / "assets" / "image-01.png").write_bytes(png)
+            manifest = {
+                "category": "Actions",
+                "assets": [{
+                    "key": "asset-01",
+                    "file": "assets/image-01.png",
+                    "mediaType": "image/png",
+                    "sizeBytes": len(png),
+                    "sha256": hashlib.sha256(png).hexdigest(),
+                }],
+            }
+            payload = {"tasks": [{"actions": [{"args": {"path": "{{asset:asset-01}}"}}]}]}
+            self.assertEqual(validate_package_assets(folder, manifest, payload), [])
+
+    def test_rejects_asset_checksum_mismatch(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            (folder / "assets").mkdir()
+            png = sample_png()
+            (folder / "assets" / "image-01.png").write_bytes(png)
+            manifest = {
+                "category": "Actions",
+                "assets": [{
+                    "key": "asset-01",
+                    "file": "assets/image-01.png",
+                    "mediaType": "image/png",
+                    "sizeBytes": len(png),
+                    "sha256": "0" * 64,
+                }],
+            }
+            self.assertTrue(validate_package_assets(folder, manifest, {"tasks": []}))
+
+    def test_rejects_undeclared_and_private_asset_references(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            self.assertTrue(validate_package_assets(
+                folder,
+                {"category": "Actions", "assets": []},
+                {"tasks": [{"actions": [{"args": {"path": "{{asset:asset-01}}"}}]}]},
+            ))
+            self.assertTrue(validate_package_assets(
+                folder,
+                {"category": "Actions", "assets": []},
+                {"tasks": [{"actions": [{"args": {"path": "content://private/image.png"}}]}]},
+            ))
 
 
 if __name__ == "__main__":

@@ -73,6 +73,26 @@ The following optional fields control how the package appears in the OpenTasker 
 
 These are presentation and discovery fields only. They do not change the bundle's permissions, risk classification, or import behavior. The app always verifies the signed catalogue and bundle hash, and imported profiles still start disabled.
 
+## Optional bundled images and audio
+
+Action, Shortcut Widget, and Widget Display creators may include up to **12 optional media files** with each package version. Images selected in the publisher app may be PNG, JPG, or WebP; they are re-encoded as metadata-clean PNGs, limited to 2048 × 2048 pixels and 5 MB each. Audio may be MP3, OGG, WAV, or M4A, up to 10 MB each. Combined media may not exceed 40 MB. Media files are data only; executable files and arbitrary file paths are not accepted.
+
+The publisher app assigns stable references such as `{{asset:asset-01}}` and includes a manifest entry for each file:
+
+    {
+      "assets": [
+        {
+          "key": "asset-01",
+          "file": "assets/audio-01.mp3",
+          "mediaType": "audio/mpeg",
+          "sizeBytes": 123456,
+          "sha256": "<64-character SHA-256 digest>"
+        }
+      ]
+    }
+
+Use the matching reference in an Action file/audio path field. Widget Display image elements may use the same reference in `imageUri`. The package must not contain the publisher's original `file://` or `content://` URI. During installation, OpenTasker verifies the signed catalogue path, SHA-256 digest, size, and media type, copies the file into the installer's chosen package-content folder (or app-private storage by default), and replaces the reference with that device's local URI. The creator can omit media entirely; packages without assets behave as before. A new immutable version must re-select any media files that should carry forward.
+
 ## Discovery, community reviews, and analytics
 
 The signed catalogue includes the package publication timestamp, review summary and content, download totals, unique installer count, and downloads from the last seven days. The app uses those signed values for Recommended, Trending, Top Rated, Newest, and Most Downloaded sorting. A package's popularity metrics are not a substitute for its risk and review indicators.
