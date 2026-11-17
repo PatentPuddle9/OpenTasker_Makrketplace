@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "withdrawnPackages": [],
-  "notes": "Maintainers only. Use package IDs and exact versions. Keep reasons factual and do not include personal data.",
+  "notes": "Maintainers only. Use package IDs and exact versions. Deleted-package records are retained for audit history and do not reserve package IDs; deletion removes the old package files so an ID can be reused for a fresh 1.0.0 listing. Keep reasons factual and do not include personal data.",
   "deletedPackages": [
     {
       "id": "charging",
