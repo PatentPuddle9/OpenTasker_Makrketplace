@@ -102,6 +102,20 @@ def main():
         (item.get("id"), item.get("version"))
         for item in decisions.get("withdrawnPackages", [])
     }
+    ratings_data = json.loads(Path("moderation/ratings.json").read_text(encoding="utf-8"))
+    ratings_by_package = {}
+    for rating in ratings_data.get("ratings", []):
+        package_id = str(rating.get("packageId", "")).strip().lower()
+        user_id = rating.get("userId")
+        stars = rating.get("stars")
+        if package_id and isinstance(user_id, int) and user_id > 0 and type(stars) is int and 1 <= stars <= 5:
+            ratings_by_package.setdefault(package_id, {})[str(user_id)] = stars
+    featured_data = json.loads(Path("moderation/featured-packages.json").read_text(encoding="utf-8"))
+    featured_ids = {
+        str(item.get("id", "")).strip().lower()
+        for item in featured_data.get("packages", [])
+        if isinstance(item, dict) and item.get("id")
+    }
     entries = []
     for manifest_path in sorted(Path("packages").glob("*/*/manifest.json")):
         folder = manifest_path.parent
@@ -135,6 +149,9 @@ def main():
         else:
             reviewer_names, reviewed_at, review_status = [], None, "automated"
 
+        rating_votes = ratings_by_package.get(package_id, {})
+        rating_count = len(rating_votes)
+        rating_average = round(sum(rating_votes.values()) / rating_count, 2) if rating_count else 0.0
         entries.append({
             "id": package_id,
             "name": manifest["name"],
@@ -148,6 +165,10 @@ def main():
             "shape": manifest.get("shape", "squircle"),
             "changelog": manifest.get("changelog", ""),
             "documentationUrl": manifest.get("documentationUrl", ""),
+            "featured": package_id in featured_ids,
+            "ratingAverage": rating_average,
+            "ratingCount": rating_count,
+            "ratingVotes": dict(sorted(rating_votes.items())),
             "category": manifest["category"],
             "publisher": manifest["publisher"],
             "version": version,

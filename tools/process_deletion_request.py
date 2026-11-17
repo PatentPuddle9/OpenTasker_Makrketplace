@@ -166,12 +166,37 @@ def main():
             if not (isinstance(item, dict) and str(item.get("id", "")).lower() == package_id)
         ]
 
+        # Ratings and featured status belong to a package generation. A fresh package
+        # reusing the same ID must start with no inherited stars or featured placement.
+        ratings_path = Path("moderation/ratings.json")
+        ratings_data = json.loads(ratings_path.read_text(encoding="utf-8"))
+        ratings_data["ratings"] = [
+            item for item in ratings_data.get("ratings", [])
+            if not (isinstance(item, dict) and str(item.get("packageId", "")).lower() == package_id)
+        ]
+        ratings_path.write_text(
+            json.dumps(ratings_data, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        featured_path = Path("moderation/featured-packages.json")
+        featured_data = json.loads(featured_path.read_text(encoding="utf-8"))
+        featured_data["packages"] = [
+            item for item in featured_data.get("packages", [])
+            if not (isinstance(item, dict) and str(item.get("id", "")).lower() == package_id)
+        ]
+        featured_path.write_text(
+            json.dumps(featured_data, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
         decisions_path.write_text(
             json.dumps(decisions, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
         subprocess.run(
-            ["git", "add", "-A", "--", str(package_dir), "moderation/decisions.json"],
+            ["git", "add", "-A", "--", str(package_dir), "moderation/decisions.json",
+             "moderation/ratings.json", "moderation/featured-packages.json"],
             check=True,
         )
         subprocess.run(

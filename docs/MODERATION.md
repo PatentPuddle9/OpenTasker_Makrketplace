@@ -18,6 +18,14 @@ Every update to an already-published package requires a formal GitHub APPROVED r
 
 For a high-risk first publication, a trusted reviewer can submit an APPROVE review or comment /approve-high-risk. A later /revoke-high-risk comment cancels a prior comment approval. A package is not published as reviewed unless the publisher workflow can confirm a trusted approval.
 
+## Ratings and featured packages
+
+Signed-in Marketplace users can submit one 1–5 star rating per package. A later rating from the same GitHub account replaces that account's previous rating; publishers cannot rate their own packages. The processor stores the GitHub numeric account ID and rating, then the signed catalogue publishes the aggregate and current-user rating lookup. Ratings are moderation metadata, not package code.
+
+Only users listed in .github/marketplace-reviewers.json may feature or unfeature a package. Maintainers use the OpenTasker Marketplace package details screen; the app submits a structured request and the workflow validates the issue author against the trusted reviewer list before changing moderation/featured-packages.json. Featured state is published in the signed catalogue and appears in the app's Featured filter.
+
+Deleting a package also clears its ratings and featured state. A new package that reuses the ID starts with no inherited reviews or featured placement.
+
 ## Reports, deletion, and enforcement
 
 Package reports create GitHub Issues, add the package-report label, assign the issue to PatentPuddle9, and mention the owner. Keep the review record in the issue.

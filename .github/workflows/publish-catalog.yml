@@ -36,7 +36,8 @@ jobs:
             tools/build_catalog.py \
             tools/validate_pr.py \
             tools/validate_marketplace.py \
-            tools/process_deletion_request.py
+            tools/process_deletion_request.py \
+            tools/process_marketplace_community.py
 
       - name: Build and publish from the latest main
         env:
