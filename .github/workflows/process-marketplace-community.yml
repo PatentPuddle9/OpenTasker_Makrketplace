@@ -3,6 +3,8 @@ name: Process Marketplace community requests
 on:
   issues:
     types: [opened]
+  issue_comment:
+    types: [created]
 
 permissions:
   actions: write
@@ -25,7 +27,7 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Process rating, review, helpful-vote, download, or featured request
+      - name: Process rating, review, publisher response, report, helpful vote, download, feature, or moderator command
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}

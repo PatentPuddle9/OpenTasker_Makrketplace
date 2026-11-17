@@ -16,6 +16,8 @@ FEATURE_MARKER = "<!-- opentasker-marketplace-feature:v1 -->"
 REVIEW_MARKER = "<!-- opentasker-marketplace-review:v1 -->"
 HELPFUL_MARKER = "<!-- opentasker-marketplace-helpful:v1 -->"
 DOWNLOAD_MARKER = "<!-- opentasker-marketplace-download:v1 -->"
+PUBLISHER_RESPONSE_MARKER = "<!-- opentasker-marketplace-publisher-response:v1 -->"
+REVIEW_REPORT_MARKER = "<!-- opentasker-marketplace-review-report:v1 -->"
 EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
 PHONE = re.compile(r"(?<!\w)(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}(?!\w)")
 SECRET = re.compile(r"(?i)\b(?:bearer\s+\S{12,}|(?:gh[pousr]?|sk)_[A-Za-z0-9_-]{16,}|(?:token|password|api.?key)\s*[:=]\s*\S{8,})")
@@ -132,9 +134,97 @@ def persist_json_update(path, update, commit_message):
     raise SystemExit("Could not save the Marketplace community request after three attempts.")
 
 
+
+def process_moderator_command(event):
+    issue = event.get("issue") or {}
+    comment = event.get("comment") or {}
+    number = int(issue.get("number") or 0)
+    login = str((comment.get("user") or {}).get("login") or "").strip()
+    body = str(comment.get("body") or "").strip()
+    if not number or not body.startswith("/"):
+        return False
+    if login.casefold() not in trusted_reviewers():
+        return False
+
+    parts = body.split(maxsplit=3)
+    command = parts[0].casefold()
+    repository = os.environ["GITHUB_REPOSITORY"]
+    now = datetime.now(timezone.utc).isoformat()
+
+    if command in {"/hide-review", "/restore-review"}:
+        if len(parts) < 3 or not PACKAGE_ID.fullmatch(parts[1].lower()) or not parts[2].isdigit():
+            reply = "Usage: /hide-review <package-id> <review-user-id> or /restore-review <package-id> <review-user-id>."
+        else:
+            package_id, review_user_id = parts[1].lower(), int(parts[2])
+            path = Path("moderation/reviews.json")
+            def update(data):
+                review = next((item for item in data.get("reviews", []) if item.get("packageId") == package_id and item.get("userId") == review_user_id), None)
+                if review is None:
+                    raise ValueError("That review does not exist.")
+                visibility = "hidden" if command == "/hide-review" else "visible"
+                review["moderationStatus"] = visibility
+                review["moderatedAt"] = now
+                review["moderatedBy"] = login
+                return True, f"Review {package_id}/{review_user_id} is now {visibility}."
+            reply = persist_json_update(path, update, f"{command[1:]} Marketplace review {package_id}")
+    elif command in {"/quarantine", "/restore-package"}:
+        if len(parts) < 3 or not PACKAGE_ID.fullmatch(parts[1].lower()) or not SEMVER.fullmatch(parts[2]):
+            reply = "Usage: /quarantine <package-id> <version> [reason] or /restore-package <package-id> <version>."
+        else:
+            package_id, version = parts[1].lower(), parts[2]
+            path = Path("moderation/decisions.json")
+            def update(data):
+                records = data.setdefault("quarantinedPackages", [])
+                if command == "/quarantine":
+                    reason = parts[3].strip() if len(parts) > 3 else "Under moderator review"
+                    current = next((item for item in records if item.get("id") == package_id and item.get("version") == version), None)
+                    record = {"id": package_id, "version": version, "reason": reason[:300], "quarantinedAt": now, "quarantinedBy": login}
+                    if current:
+                        records[records.index(current)] = record
+                    else:
+                        records.append(record)
+                    return True, f"Package {package_id}@{version} has been quarantined. Existing installs are unchanged."
+                new_records = [item for item in records if not (item.get("id") == package_id and item.get("version") == version)]
+                if len(new_records) == len(records):
+                    return False, f"Package {package_id}@{version} was not quarantined."
+                data["quarantinedPackages"] = new_records
+                return True, f"Package {package_id}@{version} has been restored to the catalogue."
+            reply = persist_json_update(path, update, f"{command[1:]} Marketplace package {package_id}@{version}")
+    elif command in {"/suspend-publisher", "/unsuspend-publisher"}:
+        if len(parts) != 2 or not re.fullmatch(r"[A-Za-z0-9-]{1,39}", parts[1]):
+            reply = "Usage: /suspend-publisher <github-login> or /unsuspend-publisher <github-login>."
+        else:
+            publisher = parts[1].casefold()
+            path = Path("moderation/suspended-publishers.json")
+            def update(data):
+                names = data.setdefault("suspendedPublishers", [])
+                existing = {str(value).casefold() for value in names}
+                if command == "/suspend-publisher":
+                    if publisher in existing:
+                        return False, f"Publisher @{parts[1]} is already suspended."
+                    names.append(parts[1])
+                    return True, f"Publisher @{parts[1]} is suspended. Their packages will be excluded from the next signed catalogue."
+                filtered = [value for value in names if str(value).casefold() != publisher]
+                if len(filtered) == len(names):
+                    return False, f"Publisher @{parts[1]} was not suspended."
+                data["suspendedPublishers"] = filtered
+                return True, f"Publisher @{parts[1]} is no longer suspended."
+            reply = persist_json_update(path, update, f"{command[1:]} Marketplace publisher {parts[1]}")
+    else:
+        return False
+
+    api("POST", f"/repos/{repository}/issues/{number}/comments", {"body": reply})
+    return True
+
+
 def main():
     repository = os.environ["GITHUB_REPOSITORY"]
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+    if event.get("comment"):
+        if process_moderator_command(event):
+            return
+        print("Issue comment is not an authorized Marketplace moderation command.")
+        return
     issue = event.get("issue") or {}
     if issue.get("pull_request"):
         return
@@ -322,6 +412,10 @@ def main():
                 "createdAt": existing.get("createdAt", now) if existing else now,
                 "updatedAt": now,
                 "helpfulUserIds": existing.get("helpfulUserIds", []) if existing else [],
+                "reporterUserIds": existing.get("reporterUserIds", []) if existing else [],
+                "reportReasons": existing.get("reportReasons", []) if existing else [],
+                "moderationStatus": existing.get("moderationStatus", "visible") if existing else "visible",
+                "publisherResponse": existing.get("publisherResponse") if existing else None,
                 "requestUrl": issue_url,
             }
             if existing:
@@ -367,6 +461,86 @@ def main():
             finish_issue(repository, number, reply)
         except Exception as exc:
             finish_issue(repository, number, f"Helpful vote rejected: {exc}")
+        return
+
+    if PUBLISHER_RESPONSE_MARKER in body:
+        try:
+            request = parse_request(body, PUBLISHER_RESPONSE_MARKER)
+            package_id = str(request.get("packageId", "")).strip().lower()
+            review_user_id = request.get("reviewUserId")
+            response_text = str(request.get("response", "")).strip()
+            if not PACKAGE_ID.fullmatch(package_id) or type(user_id) is not int or user_id <= 0:
+                raise ValueError("The package or account reference is invalid.")
+            if type(review_user_id) is not int or review_user_id <= 0:
+                raise ValueError("The review reference is invalid.")
+            if not response_text or len(response_text) > 800:
+                raise ValueError("A publisher response must contain 1–800 characters.")
+            if EMAIL.search(response_text) or PHONE.search(response_text) or SECRET.search(response_text):
+                raise ValueError("Responses cannot contain contact details or credential-like information.")
+            found = package_manifests(package_id)
+            if not found:
+                raise ValueError("That package no longer exists.")
+            publishers = {str(manifest.get("publisher", "")).casefold() for _, manifest in found}
+            if login.casefold() not in publishers:
+                raise ValueError("Only this package's publisher can respond to reviews.")
+        except Exception as exc:
+            finish_issue(repository, number, f"Publisher response rejected: {exc}")
+            return
+        path = Path("moderation/reviews.json")
+        now = datetime.now(timezone.utc).isoformat()
+        def update(data):
+            review = next((item for item in data.get("reviews", []) if item.get("packageId") == package_id and item.get("userId") == review_user_id), None)
+            if review is None:
+                raise ValueError("That review no longer exists.")
+            if review.get("moderationStatus") == "hidden":
+                raise ValueError("A hidden review cannot receive a public publisher response.")
+            review["publisherResponse"] = {"author": login, "body": response_text, "updatedAt": now}
+            return True, f"Your response to the review on {package_id} was saved."
+        try:
+            reply = persist_json_update(path, update, f"Publish Marketplace response for {package_id}")
+            finish_issue(repository, number, reply)
+        except Exception as exc:
+            finish_issue(repository, number, f"Publisher response rejected: {exc}")
+        return
+
+    if REVIEW_REPORT_MARKER in body:
+        try:
+            request = parse_request(body, REVIEW_REPORT_MARKER)
+            package_id = str(request.get("packageId", "")).strip().lower()
+            review_user_id = request.get("reviewUserId")
+            reason = str(request.get("reason", "")).strip().lower()
+            allowed_reasons = {"spam", "harassment", "misinformation", "unsafe", "other"}
+            if not PACKAGE_ID.fullmatch(package_id) or type(user_id) is not int or user_id <= 0:
+                raise ValueError("The package or account reference is invalid.")
+            if type(review_user_id) is not int or review_user_id <= 0 or reason not in allowed_reasons:
+                raise ValueError("Choose a valid review and report reason.")
+            if not package_manifests(package_id):
+                raise ValueError("That package no longer exists.")
+        except Exception as exc:
+            finish_issue(repository, number, f"Review report rejected: {exc}")
+            return
+        path = Path("moderation/reviews.json")
+        now = datetime.now(timezone.utc).isoformat()
+        def update(data):
+            review = next((item for item in data.get("reviews", []) if item.get("packageId") == package_id and item.get("userId") == review_user_id), None)
+            if review is None:
+                raise ValueError("That review no longer exists.")
+            if review_user_id == user_id:
+                raise ValueError("You cannot report your own review.")
+            reporters = review.setdefault("reporterUserIds", [])
+            if user_id in reporters:
+                return False, "You have already reported this review."
+            reporters.append(user_id)
+            review.setdefault("reportReasons", []).append({"reason": reason, "reportedAt": now})
+            if len(set(reporters)) >= 3 and review.get("moderationStatus", "visible") == "visible":
+                review["moderationStatus"] = "under_review"
+                review["underReviewAt"] = now
+            return True, f"Your report for {package_id} was sent to moderation. The review will be temporarily hidden after three independent reports."
+        try:
+            reply = persist_json_update(path, update, f"Report Marketplace review for {package_id}")
+            finish_issue(repository, number, reply)
+        except Exception as exc:
+            finish_issue(repository, number, f"Review report rejected: {exc}")
         return
 
     if DOWNLOAD_MARKER in body:
