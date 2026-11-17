@@ -5,6 +5,7 @@ on:
     types: [opened]
 
 permissions:
+  actions: write
   contents: write
   issues: write
 

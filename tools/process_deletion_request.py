@@ -216,6 +216,20 @@ def main():
     if not published:
         raise SystemExit("Could not publish the deletion tombstone after three attempts; the request can be retried.")
 
+    try:
+        api(
+            "POST",
+            f"/repos/{repository}/actions/workflows/publish-catalog.yml/dispatches",
+            {"ref": "main"},
+        )
+    except Exception as exc:
+        print(f"Could not queue the signed catalogue refresh: {exc}")
+        api(
+            "POST",
+            f"/repos/{repository}/issues/{number}/comments",
+            {"body": "The package deletion was saved, but the signed catalogue refresh could not be queued automatically. A maintainer must run the Publish signed marketplace catalogue workflow."},
+        )
+
     finish_issue(
         repository,
         number,

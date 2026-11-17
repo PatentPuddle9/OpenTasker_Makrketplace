@@ -65,6 +65,14 @@ def trusted_reviewers():
     return {str(name).strip().casefold() for name in config.get("reviewers", [])}
 
 
+def dispatch_catalog_publish(repository):
+    api(
+        "POST",
+        f"/repos/{repository}/actions/workflows/publish-catalog.yml/dispatches",
+        {"ref": "main"},
+    )
+
+
 def configure_bot():
     subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
     subprocess.run(
@@ -173,7 +181,8 @@ def main():
             subprocess.run(["git", "commit", "-m", commit_message], check=True)
             push = subprocess.run(["git", "push", "origin", "HEAD:main"], text=True, capture_output=True)
             if push.returncode == 0:
-                message = f"Your {stars}-star rating for {package_id} has been recorded. The Marketplace summary will update after the signed catalogue refreshes."
+                dispatch_catalog_publish(repository)
+                message = f"Your {stars}-star rating for {package_id} has been recorded. A signed catalogue refresh has been queued."
                 break
             print(f"Rating push attempt {attempt} raced with another main update: {push.stderr.strip()}")
         if message is None:
@@ -238,7 +247,8 @@ def main():
             subprocess.run(["git", "commit", "-m", ("Feature" if featured else "Unfeature") + f" Marketplace package {package_id}"], check=True)
             push = subprocess.run(["git", "push", "origin", "HEAD:main"], text=True, capture_output=True)
             if push.returncode == 0:
-                message = reply + " The signed catalogue will show the change after it refreshes."
+                dispatch_catalog_publish(repository)
+                message = reply + " A signed catalogue refresh has been queued."
                 break
             print(f"Feature push attempt {attempt} raced with another main update: {push.stderr.strip()}")
         if message is None:
