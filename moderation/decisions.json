@@ -2,5 +2,12 @@
   "schemaVersion": 1,
   "withdrawnPackages": [],
   "notes": "Maintainers only. Use package IDs and exact versions. Keep reasons factual and do not include personal data.",
-  "deletedPackages": []
+  "deletedPackages": [
+    {
+      "id": "charging",
+      "publisher": "PatentPuddle9",
+      "deletedAt": "2026-11-17T14:32:34.952832+00:00",
+      "requestUrl": "https://github.com/PatentPuddle9/OpenTasker_Makrketplace/issues/2"
+    }
+  ]
 }
