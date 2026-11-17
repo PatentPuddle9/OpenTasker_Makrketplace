@@ -13,6 +13,12 @@ from pathlib import Path
 
 RATING_MARKER = "<!-- opentasker-marketplace-rate:v1 -->"
 FEATURE_MARKER = "<!-- opentasker-marketplace-feature:v1 -->"
+REVIEW_MARKER = "<!-- opentasker-marketplace-review:v1 -->"
+HELPFUL_MARKER = "<!-- opentasker-marketplace-helpful:v1 -->"
+DOWNLOAD_MARKER = "<!-- opentasker-marketplace-download:v1 -->"
+EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
+PHONE = re.compile(r"(?<!\w)(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}(?!\w)")
+SECRET = re.compile(r"(?i)\b(?:bearer\s+\S{12,}|(?:gh[pousr]?|sk)_[A-Za-z0-9_-]{16,}|(?:token|password|api.?key)\s*[:=]\s*\S{8,})")
 PACKAGE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{1,79}$")
 SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$")
 
@@ -100,6 +106,30 @@ def save_with_retry(path, content, message):
             return True
         print(f"Push attempt {attempt} raced with another main update: {push.stderr.strip()}")
     return False
+
+
+
+def persist_json_update(path, update, commit_message):
+    repository = os.environ["GITHUB_REPOSITORY"]
+    for attempt in range(1, 4):
+        subprocess.run(["git", "fetch", "origin", "main"], check=True)
+        subprocess.run(["git", "reset", "--hard", "origin/main"], check=True)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        changed, reply = update(data)
+        if not changed:
+            return reply
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        configure_bot()
+        subprocess.run(["git", "add", "--", str(path)], check=True)
+        if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
+            return reply
+        subprocess.run(["git", "commit", "-m", commit_message], check=True)
+        push = subprocess.run(["git", "push", "origin", "HEAD:main"], text=True, capture_output=True)
+        if push.returncode == 0:
+            dispatch_catalog_publish(repository)
+            return reply + " A signed catalogue refresh has been queued."
+        print(f"Community request push attempt {attempt} raced with main: {push.stderr.strip()}")
+    raise SystemExit("Could not save the Marketplace community request after three attempts.")
 
 
 def main():
@@ -256,7 +286,127 @@ def main():
         finish_issue(repository, number, message)
         return
 
-    print("Issue is not an OpenTasker Marketplace rating or feature request.")
+    if REVIEW_MARKER in body:
+        try:
+            request = parse_request(body, REVIEW_MARKER)
+            package_id = str(request.get("packageId", "")).strip().lower()
+            title = str(request.get("title", "")).strip()
+            review_text = str(request.get("body", "")).strip()
+            if not PACKAGE_ID.fullmatch(package_id):
+                raise ValueError("The package ID is invalid.")
+            if type(user_id) is not int or user_id <= 0:
+                raise ValueError("GitHub did not provide a valid account ID.")
+            found = package_manifests(package_id)
+            if not found:
+                raise ValueError("That package no longer exists.")
+            publisher = str(found[0][1].get("publisher", "")).casefold()
+            if publisher == login.casefold():
+                raise ValueError("Publishers cannot review their own packages.")
+            if not title or len(title) > 100:
+                raise ValueError("A review title is required and must be 100 characters or fewer.")
+            if not review_text or len(review_text) > 1200:
+                raise ValueError("A review must contain 1–1,200 characters.")
+            if EMAIL.search(title + "\n" + review_text) or PHONE.search(title + "\n" + review_text) or SECRET.search(title + "\n" + review_text):
+                raise ValueError("Reviews cannot contain contact details or credential-like information.")
+        except Exception as exc:
+            finish_issue(repository, number, f"Review rejected: {exc}")
+            return
+        path = Path("moderation/reviews.json")
+        now = datetime.now(timezone.utc).isoformat()
+        def update(data):
+            reviews = data.setdefault("reviews", [])
+            existing = next((item for item in reviews if item.get("packageId") == package_id and int(item.get("userId", -1)) == user_id), None)
+            record = {
+                "packageId": package_id, "userId": user_id, "author": login,
+                "title": title, "body": review_text,
+                "createdAt": existing.get("createdAt", now) if existing else now,
+                "updatedAt": now,
+                "helpfulUserIds": existing.get("helpfulUserIds", []) if existing else [],
+                "requestUrl": issue_url,
+            }
+            if existing:
+                reviews[reviews.index(existing)] = record
+                return True, f"Your review for {package_id} was updated."
+            reviews.append(record)
+            return True, f"Your review for {package_id} was published."
+        try:
+            reply = persist_json_update(path, update, f"Publish Marketplace review for {package_id}")
+            finish_issue(repository, number, reply)
+        except Exception as exc:
+            finish_issue(repository, number, f"Review rejected: {exc}")
+        return
+
+    if HELPFUL_MARKER in body:
+        try:
+            request = parse_request(body, HELPFUL_MARKER)
+            package_id = str(request.get("packageId", "")).strip().lower()
+            review_user_id = request.get("reviewUserId")
+            if not PACKAGE_ID.fullmatch(package_id) or type(user_id) is not int or user_id <= 0:
+                raise ValueError("The package or account reference is invalid.")
+            if type(review_user_id) is not int or review_user_id <= 0:
+                raise ValueError("The review reference is invalid.")
+            if not package_manifests(package_id):
+                raise ValueError("That package no longer exists.")
+        except Exception as exc:
+            finish_issue(repository, number, f"Helpful vote rejected: {exc}")
+            return
+        path = Path("moderation/reviews.json")
+        def update(data):
+            review = next((item for item in data.get("reviews", []) if item.get("packageId") == package_id and item.get("userId") == review_user_id), None)
+            if review is None:
+                raise ValueError("That review no longer exists.")
+            if review_user_id == user_id:
+                raise ValueError("You cannot vote your own review as helpful.")
+            voters = review.setdefault("helpfulUserIds", [])
+            if user_id in voters:
+                return False, "You have already marked this review helpful."
+            voters.append(user_id)
+            return True, f"Your helpful vote for {package_id} was recorded."
+        try:
+            reply = persist_json_update(path, update, f"Record helpful Marketplace review vote for {package_id}")
+            finish_issue(repository, number, reply)
+        except Exception as exc:
+            finish_issue(repository, number, f"Helpful vote rejected: {exc}")
+        return
+
+    if DOWNLOAD_MARKER in body:
+        try:
+            request = parse_request(body, DOWNLOAD_MARKER)
+            package_id = str(request.get("packageId", "")).strip().lower()
+            version = str(request.get("version", "")).strip()
+            found = package_manifests(package_id) if PACKAGE_ID.fullmatch(package_id) else []
+            if type(user_id) is not int or user_id <= 0 or not SEMVER.fullmatch(version):
+                raise ValueError("The package version or account reference is invalid.")
+            if not any(manifest.get("version") == version for _, manifest in found):
+                raise ValueError("That package version is not published.")
+        except Exception as exc:
+            finish_issue(repository, number, f"Download statistic rejected: {exc}")
+            return
+        path = Path("moderation/download-stats.json")
+        day = datetime.now(timezone.utc).date().isoformat()
+        def update(data):
+            packages = data.setdefault("packages", {})
+            stats = packages.setdefault(package_id, {"totalDownloads": 0, "uniqueUserIds": [], "daily": []})
+            daily = next((item for item in stats.setdefault("daily", []) if item.get("date") == day), None)
+            if daily is None:
+                daily = {"date": day, "count": 0, "userIds": []}
+                stats["daily"].append(daily)
+            if user_id in daily.setdefault("userIds", []):
+                return False, f"Your install of {package_id} has already been counted today."
+            daily["userIds"].append(user_id)
+            daily["count"] = int(daily.get("count", 0)) + 1
+            stats["totalDownloads"] = int(stats.get("totalDownloads", 0)) + 1
+            if user_id not in stats.setdefault("uniqueUserIds", []):
+                stats["uniqueUserIds"].append(user_id)
+            return True, f"Your install of {package_id} was counted in Marketplace statistics."
+        try:
+            reply = persist_json_update(path, update, f"Update Marketplace download stats for {package_id}")
+            finish_issue(repository, number, reply)
+        except Exception as exc:
+            finish_issue(repository, number, f"Download statistic rejected: {exc}")
+        return
+
+    print("Issue is not an OpenTasker Marketplace community request.")
 
 
 if __name__ == "__main__":
