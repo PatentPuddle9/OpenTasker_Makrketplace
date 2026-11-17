@@ -197,7 +197,7 @@ def main():
             if not (isinstance(item, dict) and str(item.get("packageId", "")).lower() == package_id)
         ]
         reviews_path.write_text(
-            json.dumps(reviews_data, ensure_ascii=False, indent=2) + "\\n",
+            json.dumps(reviews_data, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
 
@@ -205,7 +205,7 @@ def main():
         downloads_data = json.loads(downloads_path.read_text(encoding="utf-8"))
         downloads_data.setdefault("packages", {}).pop(package_id, None)
         downloads_path.write_text(
-            json.dumps(downloads_data, ensure_ascii=False, indent=2) + "\\n",
+            json.dumps(downloads_data, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
 
