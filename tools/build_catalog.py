@@ -9,7 +9,7 @@ import hashlib
 import os
 import subprocess
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from validate_marketplace import validate_package
@@ -38,6 +38,16 @@ def last_commit_for(folder):
         ["git", "log", "-1", "--format=%H", "--", folder],
         text=True,
     ).strip()
+
+
+def published_at_for(folder):
+    commit = last_commit_for(folder)
+    if not commit:
+        return ""
+    try:
+        return subprocess.check_output(["git", "show", "-s", "--format=%cI", commit], text=True).strip()
+    except Exception:
+        return ""
 
 
 def approvals_for_package(folder, reviewers):
@@ -116,6 +126,17 @@ def main():
         for item in featured_data.get("packages", [])
         if isinstance(item, dict) and item.get("id")
     }
+    reviews_data = json.loads(Path("moderation/reviews.json").read_text(encoding="utf-8"))
+    reviews_by_package = {}
+    for review in reviews_data.get("reviews", []):
+        package_id = str(review.get("packageId", "")).strip().lower()
+        user_id = review.get("userId")
+        title = str(review.get("title", "")).strip()
+        body = str(review.get("body", "")).strip()
+        if package_id and isinstance(user_id, int) and user_id > 0 and title and body:
+            reviews_by_package.setdefault(package_id, []).append(review)
+    download_data = json.loads(Path("moderation/download-stats.json").read_text(encoding="utf-8"))
+    download_stats = download_data.get("packages", {})
     entries = []
     for manifest_path in sorted(Path("packages").glob("*/*/manifest.json")):
         folder = manifest_path.parent
@@ -152,6 +173,35 @@ def main():
         rating_votes = ratings_by_package.get(package_id, {})
         rating_count = len(rating_votes)
         rating_average = round(sum(rating_votes.values()) / rating_count, 2) if rating_count else 0.0
+        package_reviews = sorted(
+            reviews_by_package.get(package_id, []),
+            key=lambda item: str(item.get("updatedAt", item.get("createdAt", ""))),
+            reverse=True,
+        )[:50]
+        public_reviews = [{
+            "reviewId": str(item["userId"]),
+            "userId": item["userId"],
+            "author": str(item.get("author", "Community member")),
+            "title": str(item.get("title", "")),
+            "body": str(item.get("body", "")),
+            "createdAt": str(item.get("createdAt", "")),
+            "updatedAt": str(item.get("updatedAt", "")),
+            "helpfulCount": len(set(item.get("helpfulUserIds", []))),
+            "helpfulUserIds": sorted(set(int(value) for value in item.get("helpfulUserIds", []) if str(value).isdigit())),
+        } for item in package_reviews]
+        published_at = published_at_for(folder.as_posix())
+        stats = download_stats.get(package_id, {})
+        daily_downloads = stats.get("daily", []) if isinstance(stats, dict) else []
+        cutoff = (datetime.now(timezone.utc).date() - timedelta(days=6)).isoformat()
+        weekly_downloads = sum(
+            max(0, int(item.get("count", 0)))
+            for item in daily_downloads
+            if isinstance(item, dict) and str(item.get("date", "")) >= cutoff
+        )
+        screenshot_entries = [{
+            "path": f"{folder.as_posix()}/{name}",
+            "sha256": hashlib.sha256((folder / name).read_bytes()).hexdigest(),
+        } for name in manifest.get("screenshots", [])]
         entries.append({
             "id": package_id,
             "name": manifest["name"],
@@ -169,6 +219,14 @@ def main():
             "ratingAverage": rating_average,
             "ratingCount": rating_count,
             "ratingVotes": dict(sorted(rating_votes.items())),
+            "reviews": public_reviews,
+            "downloadCount": max(0, int(stats.get("totalDownloads", 0))) if isinstance(stats, dict) else 0,
+            "uniqueInstallerCount": len(set(stats.get("uniqueUserIds", []))) if isinstance(stats, dict) else 0,
+            "weeklyDownloads": weekly_downloads,
+            "publishedAt": published_at,
+            "faqs": manifest.get("faqs", []),
+            "dependencies": manifest.get("dependencies", []),
+            "screenshots": screenshot_entries,
             "category": manifest["category"],
             "publisher": manifest["publisher"],
             "version": version,

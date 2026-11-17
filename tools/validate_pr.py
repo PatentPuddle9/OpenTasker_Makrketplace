@@ -181,9 +181,17 @@ def main():
             with tempfile.TemporaryDirectory() as temporary:
                 target = Path(temporary) / "packages" / package_id / folder_version
                 target.mkdir(parents=True, exist_ok=True)
+                package_paths = [path for path in paths if path.startswith(folder + "/")]
+                for path in package_paths:
+                    relative = Path(path[len(folder) + 1:])
+                    if relative.is_absolute() or ".." in relative.parts:
+                        raise ValueError("Package file path is not safe.")
+                    destination = target / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_bytes(git_show(head, path))
                 for filename in ("manifest.json", "bundle.json"):
-                    raw = git_show(head, f"{folder}/{filename}")
-                    (target / filename).write_bytes(raw)
+                    if not (target / filename).is_file():
+                        raise ValueError(f"Package must include {filename}.")
                 result = validate_package(target)
 
             manifest = result["manifest"]

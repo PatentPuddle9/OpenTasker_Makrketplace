@@ -320,6 +320,53 @@ def validate_package(folder: Path):
         if len(str(documentation_url)) > 300:
             errors.append("documentationUrl must be 300 characters or fewer.")
 
+    faqs = manifest.get("faqs", [])
+    if not isinstance(faqs, list) or len(faqs) > 10:
+        errors.append("faqs must be a list of at most 10 question-and-answer entries.")
+    else:
+        for index, faq in enumerate(faqs):
+            if not isinstance(faq, dict):
+                errors.append(f"FAQ {index + 1} must be an object.")
+                continue
+            question, answer = faq.get("question", ""), faq.get("answer", "")
+            if not isinstance(question, str) or not question.strip() or len(question) > 160:
+                errors.append(f"FAQ {index + 1} question must be 1–160 characters.")
+            if not isinstance(answer, str) or not answer.strip() or len(answer) > 1200:
+                errors.append(f"FAQ {index + 1} answer must be 1–1,200 characters.")
+    dependencies = manifest.get("dependencies", [])
+    if not isinstance(dependencies, list) or len(dependencies) > 10:
+        errors.append("dependencies must be a list of at most 10 package requirements.")
+    else:
+        seen_dependencies = set()
+        for dependency in dependencies:
+            if not isinstance(dependency, dict):
+                errors.append("Each dependency must be an object with id and minimumVersion.")
+                continue
+            dependency_id = str(dependency.get("id", "")).strip()
+            minimum_version = str(dependency.get("minimumVersion", ""))
+            if not PACKAGE_ID.fullmatch(dependency_id) or dependency_id == package_id:
+                errors.append("Dependency IDs must be valid package IDs and cannot reference the package itself.")
+            if dependency_id in seen_dependencies:
+                errors.append(f"Duplicate dependency: {dependency_id}.")
+            seen_dependencies.add(dependency_id)
+            if not SEMVER.fullmatch(minimum_version):
+                errors.append(f"Dependency {dependency_id or '(unknown)'} minimumVersion must use semantic versioning.")
+            if not isinstance(dependency.get("optional", False), bool):
+                errors.append(f"Dependency {dependency_id or '(unknown)'} optional must be a boolean.")
+    screenshots = manifest.get("screenshots", [])
+    if not isinstance(screenshots, list) or len(screenshots) > 4:
+        errors.append("screenshots must list at most 4 PNG files.")
+    else:
+        seen_screenshots = set()
+        for screenshot in screenshots:
+            if not isinstance(screenshot, str) or not re.fullmatch(r"screenshots/[0-9]{2}\.png", screenshot):
+                errors.append("Screenshot paths must use screenshots/01.png through screenshots/99.png.")
+                continue
+            if screenshot in seen_screenshots:
+                errors.append(f"Duplicate screenshot path: {screenshot}.")
+            seen_screenshots.add(screenshot)
+            errors.extend(validate_png(folder / screenshot, 2 * 1024 * 1024, screenshot))
+
     reserved = {"riskLevel", "reviewStatus", "reviewedAt", "reviewedBy", "signature", "moderatorApproval"}
     if reserved.intersection(manifest):
         errors.append("risk and review metadata are computed by the repository, not submitted by package creators.")
