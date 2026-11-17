@@ -166,7 +166,6 @@ def validate_visual_package(folder: Path, manifest: dict, payload: dict, bundle_
     package_type = payload.get("type")
     expected = {
         "Widget Displays": "widget_display",
-        "Themes": "theme",
         "Custom Widget Icons": "custom_widget_icon",
     }.get(category)
     if package_type != expected or payload.get("schemaVersion") != 1:
@@ -235,13 +234,7 @@ def validate_visual_package(folder: Path, manifest: dict, payload: dict, bundle_
                     # Android serializes ARGB colors through signed Kotlin Int values.
                     if not isinstance(color, int) or not -0x80000000 <= color <= 0xFFFFFFFF:
                         errors.append(f"Widget Display state {state_index + 1} has an invalid {color_key}.")
-    elif category == "Themes":
-        mode = payload.get("themeMode")
-        accent = str(payload.get("accentColor", ""))
-        if mode not in {"system", "dark", "amoled", "light", "high_contrast", "dynamic"}:
-            errors.append("Theme package has an unsupported themeMode.")
-        if not re.fullmatch(r"#[A-Fa-f0-9]{6}", accent):
-            errors.append("Theme package accentColor must be a six-digit hex color.")
+
     elif category == "Custom Widget Icons":
         if str(payload.get("name", "")).strip() == "" or len(str(payload.get("name", ""))) > 48:
             errors.append("Custom Widget Icon name must be between 1 and 48 characters.")
@@ -332,7 +325,22 @@ def validate_package(folder: Path):
         errors.append("risk and review metadata are computed by the repository, not submitted by package creators.")
 
     category = str(manifest.get("category", ""))
-    if category in {"Widget Displays", "Themes", "Custom Widget Icons"}:
+    if category.strip().casefold() in {"theme", "themes"} or (
+        isinstance(bundle, dict)
+        and str(bundle.get("type", "")).strip().casefold() == "theme"
+    ):
+        errors.append("Theme packages are no longer accepted by the OpenTasker Marketplace.")
+        return {
+            "manifest": manifest,
+            "bundle": bundle,
+            "riskLevel": "low",
+            "actionIds": [],
+            "unknownActionIds": [],
+            "bundleSha256": hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
+            "errors": errors,
+            "warnings": warnings,
+        }
+    if category in {"Widget Displays", "Custom Widget Icons"}:
         return validate_visual_package(folder, manifest, bundle, bundle_path)
 
     if not isinstance(bundle, dict) or not isinstance(bundle.get("tasks", []), list):

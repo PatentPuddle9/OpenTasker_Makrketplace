@@ -1,6 +1,6 @@
 # OpenTasker Community Marketplace
 
-A GitHub-native catalogue for reusable OpenTasker Actions, Shortcut Widgets, Widget Display layouts, theme presets, and custom widget icons.
+A GitHub-native catalogue for reusable OpenTasker Actions, Shortcut Widgets, Widget Display layouts, and custom widget icons.
 
 There is no application server. GitHub stores packages and the signed catalogue, pull requests are the submission mechanism, and GitHub Actions performs automated validation and catalogue publishing.
 

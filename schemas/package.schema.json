@@ -50,7 +50,10 @@
     "category": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 50
+      "maxLength": 50,
+      "not": {
+        "pattern": "^[Tt][Hh][Ee][Mm][Ee][Ss]?$"
+      }
     },
     "minimumAppVersion": {
       "type": "string",
@@ -222,19 +225,8 @@
     "assetFile": {
       "const": "icon.png"
     },
-    "themeMode": {
-      "enum": [
-        "system",
-        "dark",
-        "amoled",
-        "light",
-        "high_contrast",
-        "dynamic"
-      ]
-    },
-    "themeAccentColor": {
-      "type": "string",
-      "pattern": "^#[A-Fa-f0-9]{6}$"
+    "assetFile": {
+      "const": "icon.png"
     }
   }
 }
