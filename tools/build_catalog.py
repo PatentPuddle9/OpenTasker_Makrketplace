@@ -225,6 +225,13 @@ def main():
             "path": f"{folder.as_posix()}/{name}",
             "sha256": hashlib.sha256((folder / name).read_bytes()).hexdigest(),
         } for name in manifest.get("screenshots", [])]
+        package_asset_entries = [{
+            "key": asset["key"],
+            "path": f"{folder.as_posix()}/{asset['file']}",
+            "sha256": hashlib.sha256((folder / asset["file"]).read_bytes()).hexdigest(),
+            "mediaType": asset["mediaType"],
+            "sizeBytes": (folder / asset["file"]).stat().st_size,
+        } for asset in manifest.get("assets", [])]
         entries.append({
             "id": package_id,
             "name": manifest["name"],
@@ -252,6 +259,7 @@ def main():
             "faqs": manifest.get("faqs", []),
             "dependencies": manifest.get("dependencies", []),
             "screenshots": screenshot_entries,
+            "assets": package_asset_entries,
             "category": manifest["category"],
             "publisher": manifest["publisher"],
             "version": version,

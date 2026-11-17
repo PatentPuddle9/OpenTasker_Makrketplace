@@ -19,6 +19,8 @@ EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
 US_PHONE = re.compile(r"(?<!\w)(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}(?!\w)")
 SECRET_VALUE = re.compile(r"(?i)\b(?:bearer\s+[A-Za-z0-9._~+/=-]{12,}|(?:sk|gh[pousr]?)_[A-Za-z0-9_-]{16,}|(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*['\"]?[^\s,'\"]{8,})")
 SENSITIVE_KEY = re.compile(r"(?i)(phone|recipient|contact|email|address|authorization|token|secret|password|credential|api.?key|webhook.?secret|sms.?to|destination.?number)")
+PACKAGE_ASSET_REFERENCE = re.compile(r"\{\{asset:(asset-(?:0[1-9]|1[0-2]))}}")
+PACKAGE_ASSET_FILE = re.compile(r"^assets/(?P<stem>image|audio)-(?P<number>0[1-9]|1[0-2])\.(?P<extension>png|mp3|ogg|wav|m4a)$")
 
 HIGH_RISK_ACTIONS = {
     "sms.send", "contacts.lookup", "lock", "screen.off", "reboot",
@@ -195,9 +197,133 @@ def validate_png(path: Path, max_bytes: int, label: str, max_dimension: int = 20
     return []
 
 
+def validate_package_assets(folder: Path, manifest: dict, payload: dict):
+    errors = []
+    assets = manifest.get("assets", [])
+    if not isinstance(assets, list):
+        return ["assets must be a list of at most 12 optional package media files."]
+    if len(assets) > 12:
+        errors.append("assets may contain at most 12 optional package media files.")
+
+    category = str(manifest.get("category", ""))
+    if assets and category not in {"Actions", "Shortcut Widgets", "Widget Displays"}:
+        errors.append("Only Action, Shortcut Widget, and Widget Display packages may include bundled media.")
+    if category == "Custom Widget Icons" and assets:
+        errors.append("Custom Widget Icon packages use icon.png and cannot declare additional media assets.")
+
+    seen_keys = set()
+    seen_files = set()
+    declared_keys = set()
+    total_bytes = 0
+    for index, asset in enumerate(assets[:12]):
+        label = f"package asset {index + 1}"
+        if not isinstance(asset, dict):
+            errors.append(f"{label} must be an object.")
+            continue
+
+        key = str(asset.get("key", ""))
+        path = str(asset.get("file", ""))
+        match = PACKAGE_ASSET_FILE.fullmatch(path)
+        if not re.fullmatch(r"asset-(?:0[1-9]|1[0-2])", key):
+            errors.append(f"{label} has an invalid key.")
+            continue
+        if key in seen_keys:
+            errors.append(f"Duplicate package asset key: {key}.")
+        seen_keys.add(key)
+        declared_keys.add(key)
+        if not match:
+            errors.append(f"{label} has an unsupported file path.")
+            continue
+        stem = match.group("stem")
+        number = match.group("number")
+        extension = match.group("extension")
+        if key != f"asset-{number}":
+            errors.append(f"{label} key and filename numbers must match.")
+        if path in seen_files:
+            errors.append(f"Duplicate package asset file: {path}.")
+        seen_files.add(path)
+
+        expected_type = {
+            "png": "image/png",
+            "mp3": "audio/mpeg",
+            "ogg": "audio/ogg",
+            "wav": "audio/wav",
+            "m4a": "audio/mp4",
+        }[extension]
+        media_type = str(asset.get("mediaType", ""))
+        if media_type != expected_type or (stem == "image" and extension != "png") or (stem == "audio" and extension == "png"):
+            errors.append(f"{label} mediaType does not match its supported file type.")
+            continue
+        if category == "Widget Displays" and media_type != "image/png":
+            errors.append(f"{label}: Widget Display packages may bundle images, not audio.")
+
+        size_declared = asset.get("sizeBytes")
+        if type(size_declared) is not int or not 1 <= size_declared <= 10 * 1024 * 1024:
+            errors.append(f"{label} sizeBytes must be between 1 byte and 10 MB.")
+            continue
+        digest = str(asset.get("sha256", ""))
+        if not re.fullmatch(r"[a-f0-9]{64}", digest):
+            errors.append(f"{label} sha256 must be a lowercase SHA-256 digest.")
+            continue
+
+        file_path = folder / path
+        if file_path.is_symlink() or not file_path.is_file():
+            errors.append(f"{label} file is missing or is not a regular file.")
+            continue
+        try:
+            resolved_folder = folder.resolve()
+            resolved_file = file_path.resolve()
+            if resolved_folder not in resolved_file.parents:
+                errors.append(f"{label} resolves outside its package directory.")
+                continue
+            raw = file_path.read_bytes()
+        except OSError as exc:
+            errors.append(f"{label} could not be read: {exc}.")
+            continue
+
+        if len(raw) != size_declared:
+            errors.append(f"{label} sizeBytes does not match the actual file size.")
+            continue
+        total_bytes += len(raw)
+        if total_bytes > 40 * 1024 * 1024:
+            errors.append("Combined package media files may not exceed 40 MB.")
+            break
+        if hashlib.sha256(raw).hexdigest() != digest:
+            errors.append(f"{label} checksum does not match sha256 in manifest.json.")
+
+        if media_type == "image/png":
+            errors.extend(validate_png(file_path, 5 * 1024 * 1024, path))
+        elif media_type == "audio/mpeg":
+            valid_audio = raw.startswith(b"ID3") or (
+                len(raw) >= 2 and raw[0] == 0xFF and (raw[1] & 0xE0) == 0xE0
+            )
+            if not valid_audio:
+                errors.append(f"{label} is not a recognizable MP3 audio file.")
+        elif media_type == "audio/ogg" and not raw.startswith(b"OggS"):
+            errors.append(f"{label} is not a recognizable OGG audio file.")
+        elif media_type == "audio/wav" and not (raw.startswith(b"RIFF") and raw[8:12] == b"WAVE"):
+            errors.append(f"{label} is not a recognizable WAV audio file.")
+        elif media_type == "audio/mp4" and not (len(raw) >= 12 and raw[4:8] == b"ftyp"):
+            errors.append(f"{label} is not a recognizable M4A audio file.")
+
+    referenced_keys = set()
+    for value_path, value in iter_strings(payload):
+        matches = PACKAGE_ASSET_REFERENCE.findall(value)
+        referenced_keys.update(matches)
+        if "{{asset:" in value and "{{asset:" in PACKAGE_ASSET_REFERENCE.sub("", value):
+            errors.append(f"malformed package asset reference at {value_path}.")
+        if value.strip().lower().startswith(("content://", "file://")):
+            errors.append(f"device-local file URI is not portable package content at {value_path}.")
+    undeclared = referenced_keys - declared_keys
+    if undeclared:
+        errors.append("bundle contains undeclared package asset references: " + ", ".join(sorted(undeclared)))
+    return errors
+
+
 def validate_visual_package(folder: Path, manifest: dict, payload: dict, bundle_path: Path):
     category = str(manifest.get("category", ""))
     errors = []
+    errors.extend(validate_package_assets(folder, manifest, payload))
     preview_file = manifest.get("previewFile")
     if preview_file != "preview.png":
         errors.append("visual Marketplace packages must include previewFile=preview.png.")
@@ -266,8 +392,9 @@ def validate_visual_package(folder: Path, manifest: dict, payload: dict, bundle_
                             continue
                         if element.get("actionProfileId") is not None:
                             errors.append(f"{label} must not contain a publisher's local Action reference.")
-                        if element.get("imageUri", ""):
-                            errors.append(f"{label} contains a private image URI; package images must be bundled rather than linked to device storage.")
+                        image_uri = str(element.get("imageUri", ""))
+                        if image_uri and not PACKAGE_ASSET_REFERENCE.fullmatch(image_uri):
+                            errors.append(f"{label} imageUri must use a declared Marketplace asset reference, not a private device URI.")
                         if str(element.get("icon", "")).startswith("custom:"):
                             errors.append(f"{label} references a locally stored custom icon; use a built-in icon so the Widget Display works on other devices.")
                         for key, minimum, maximum in (
@@ -444,6 +571,7 @@ def validate_package(folder: Path):
     if category in {"Widget Displays", "Custom Widget Icons"}:
         return validate_visual_package(folder, manifest, bundle, bundle_path)
 
+    errors.extend(validate_package_assets(folder, manifest, bundle))
     if not isinstance(bundle, dict) or not isinstance(bundle.get("tasks", []), list):
         errors.append("bundle.json must be a valid OpenTasker bundle with a tasks array.")
     if bundle.get("schemaVersion") not in (1, 2):

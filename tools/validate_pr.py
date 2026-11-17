@@ -183,28 +183,37 @@ def main():
                 target.mkdir(parents=True, exist_ok=True)
                 package_paths = [path for path in paths if path.startswith(folder + "/")]
                 allowed_root_files = {"manifest.json", "bundle.json", "preview.png", "icon.png"}
-                if len(package_paths) > 8:
-                    raise ValueError("A package version may contain at most eight files.")
+                if len(package_paths) > 21:
+                    raise ValueError("A package version may contain at most 21 files, including optional media assets.")
                 total_bytes = 0
                 for path in package_paths:
                     relative = Path(path[len(folder) + 1:])
                     relative_text = relative.as_posix()
-                    is_screenshot = bool(re.fullmatch(r"screenshots/[0-9]{2}\\.png", relative_text))
+                    is_screenshot = bool(re.fullmatch(r"screenshots/[0-9]{2}\.png", relative_text))
+                    is_package_asset = bool(re.fullmatch(
+                        r"assets/(?:image-(?:0[1-9]|1[0-2])\.png|audio-(?:0[1-9]|1[0-2])\.(?:mp3|ogg|wav|m4a))",
+                        relative_text,
+                    ))
                     if (
                         relative.is_absolute()
                         or ".." in relative.parts
-                        or relative_text not in allowed_root_files and not is_screenshot
+                        or relative_text not in allowed_root_files and not is_screenshot and not is_package_asset
                     ):
                         raise ValueError(
                             f"Unsupported package file '{relative_text}'. Only manifest.json, bundle.json, "
-                            "preview.png, icon.png, and screenshots/NN.png files are accepted."
+                            "preview.png, icon.png, screenshots/NN.png, and supported assets/ media files are accepted."
                         )
                     raw = git_show(head, path)
-                    if len(raw) > 8 * 1024 * 1024:
-                        raise ValueError(f"Package file '{relative_text}' exceeds the 8 MB file limit.")
+                    per_file_limit = (
+                        15 * 1024 * 1024 if relative_text == "icon.png"
+                        else 10 * 1024 * 1024 if is_package_asset
+                        else 8 * 1024 * 1024
+                    )
+                    if len(raw) > per_file_limit:
+                        raise ValueError(f"Package file '{relative_text}' exceeds its per-file size limit.")
                     total_bytes += len(raw)
-                    if total_bytes > 20 * 1024 * 1024:
-                        raise ValueError("The total package version size exceeds 20 MB.")
+                    if total_bytes > 60 * 1024 * 1024:
+                        raise ValueError("The total package version size exceeds 60 MB.")
                     destination = target / relative
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     destination.write_bytes(raw)
