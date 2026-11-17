@@ -30,33 +30,40 @@ jobs:
         with:
           python-version: "3.12"
 
-      # A signing run can wait behind other pushes. Always publish from the latest
-      # main branch so queued runs cannot overwrite or push from a stale checkout.
-      - name: Sync latest main before building catalogue
-        run: |
-          git fetch origin main
-          git reset --hard origin/main
-
-      - name: Build catalogue from validated packages
+      - name: Build and publish from the latest main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-        run: python tools/build_catalog.py
-
-      - name: Sign catalogue
-        env:
           MARKETPLACE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.MARKETPLACE_SIGNING_PRIVATE_KEY_B64 }}
-        run: bash tools/sign_catalog.sh
-
-      - name: Publish generated catalogue and signature
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add catalog/v1/index.json catalog/v1/index.sig
-          if git diff --cached --quiet; then
-            echo "Catalogue is already up to date."
-            exit 0
-          fi
-          git commit -m "Publish signed marketplace catalogue"
-          git push
+
+          for attempt in 1 2 3; do
+            echo "Catalogue publish attempt $attempt/3"
+            git fetch origin main
+            git reset --hard origin/main
+
+            python tools/build_catalog.py
+            bash tools/sign_catalog.sh
+
+            git add catalog/v1/index.json catalog/v1/index.sig
+            if git diff --cached --quiet; then
+              echo "Catalogue is already up to date."
+              exit 0
+            fi
+
+            git commit -m "Publish signed marketplace catalogue"
+            if git push origin HEAD:main; then
+              echo "Published signed Marketplace catalogue."
+              exit 0
+            fi
+
+            echo "main changed during publishing; fetching the latest state and rebuilding."
+          done
+
+          echo "::error::Could not publish the catalogue after three attempts."
+          exit 1
