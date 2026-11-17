@@ -1,4 +1,4 @@
-name: Process Marketplace ratings and featured packages
+name: Process Marketplace community requests
 
 on:
   issues:
@@ -25,7 +25,7 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Process rating or featured-package request
+      - name: Process rating, review, helpful-vote, download, or featured request
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}

@@ -1,0 +1,34 @@
+name: Explain Marketplace review rejections
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  explain:
+    if: github.event.review.state == 'changes_requested' && github.event.review.body != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post the reviewer's requested changes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const review = context.payload.review;
+            const body = [
+              "### Marketplace review feedback",
+              "",
+              `@${context.payload.review.user.login} requested changes:`,
+              "",
+              review.body,
+              "",
+              "Please address the points above in the next package version or PR update. Automated validation failures also show their exact reason in the PR Checks tab.",
+            ].join("\n");
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
