@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 import urllib.request
 from pathlib import Path
 
 from validate_marketplace import validate_package
+
+STABLE_VERSION = re.compile(r"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")
 
 
 def api(path):
@@ -36,6 +39,36 @@ def changed_paths(base, head):
         text=True,
     )
     return [line for line in output.splitlines() if line]
+
+
+def parse_version(value):
+    match = STABLE_VERSION.fullmatch(str(value))
+    if not match:
+        raise ValueError(f"version '{value}' must use stable numeric MAJOR.MINOR.PATCH format.")
+    return tuple(int(part) for part in match.groups())
+
+
+def allowed_next_versions(current):
+    major, minor, patch = parse_version(current)
+    return [
+        f"{major}.{minor}.{patch + 1}",
+        f"{major}.{minor + 1}.0",
+        f"{major + 1}.0.0",
+    ]
+
+
+def package_history(base, package_id):
+    listing = subprocess.check_output(
+        ["git", "ls-tree", "-r", "--name-only", base, "--", f"packages/{package_id}"],
+        text=True,
+    )
+    manifests = []
+    for path in listing.splitlines():
+        if not path.endswith("/manifest.json"):
+            continue
+        manifest = json.loads(git_show(base, path))
+        manifests.append((path.rsplit("/", 2)[1], manifest))
+    return manifests
 
 
 def latest_by_user(items, timestamp_field):
@@ -78,6 +111,12 @@ def main():
         moderators = {str(name).lower() for name in reviewer_config.get("reviewers", [])}
         suspended_config = json.loads(git_show(base, "moderation/suspended-publishers.json"))
         suspended = {str(name).lower() for name in suspended_config.get("suspendedPublishers", [])}
+        decisions = json.loads(git_show(base, "moderation/decisions.json"))
+        deleted_ids = {
+            str(item.get("id", "")).lower()
+            for item in decisions.get("deletedPackages", [])
+            if isinstance(item, dict)
+        }
     except Exception as exc:
         raise SystemExit(f"Could not load trusted moderation configuration from base branch: {exc}")
 
@@ -96,8 +135,12 @@ def main():
         for path in paths
         if path.startswith("packages/") and len(path.split("/")) >= 4
     })
+    if len(package_folders) > 1:
+        raise SystemExit("Submit one package version per pull request so review and version history stay unambiguous.")
+
     highest_risk = "low"
     errors = []
+    is_update = False
 
     for folder in package_folders:
         try:
@@ -107,13 +150,52 @@ def main():
                 continue
             except subprocess.CalledProcessError:
                 pass
+
+            package_id = folder.split("/")[1]
+            folder_version = folder.split("/")[2]
+            if package_id.lower() in deleted_ids:
+                errors.append(f"{folder}: this package ID has been permanently withdrawn and cannot be republished. Choose a new package ID.")
+                continue
+
+            prior_versions = package_history(base, package_id)
+            if prior_versions:
+                is_update = True
+                prior_publishers = {
+                    str(manifest.get("publisher", "")).lower()
+                    for _, manifest in prior_versions
+                }
+                if prior_publishers != {author}:
+                    errors.append(f"{folder}: only the original publisher may submit updates to this package.")
+                    continue
+                try:
+                    latest_version = max(
+                        (parse_version(manifest.get("version", "")), str(manifest.get("version", "")))
+                        for _, manifest in prior_versions
+                    )[1]
+                    allowed = allowed_next_versions(latest_version)
+                    parse_version(folder_version)
+                    if folder_version not in allowed:
+                        errors.append(
+                            f"{folder}: version must be exactly one step above latest published version "
+                            f"{latest_version}. Allowed next versions: {', '.join(allowed)}."
+                        )
+                        continue
+                except ValueError as exc:
+                    errors.append(f"{folder}: {exc}")
+                    continue
+            else:
+                if folder_version != "1.0.0":
+                    errors.append(f"{folder}: a new package must start at version 1.0.0.")
+                    continue
+
             with tempfile.TemporaryDirectory() as temporary:
-                target = Path(temporary) / "packages" / folder.split("/")[1] / folder.split("/")[2]
+                target = Path(temporary) / "packages" / package_id / folder_version
                 target.mkdir(parents=True, exist_ok=True)
                 for filename in ("manifest.json", "bundle.json"):
                     raw = git_show(head, f"{folder}/{filename}")
                     (target / filename).write_bytes(raw)
                 result = validate_package(target)
+
             manifest = result["manifest"]
             if str(manifest.get("publisher", "")).lower() != author:
                 errors.append(f"{folder}: manifest publisher must match the pull request author (@{author}).")
@@ -134,16 +216,29 @@ def main():
         return
 
     print(f"Validated {len(package_folders)} package folder(s); computed highest risk: {highest_risk}.")
-    if highest_risk != "high":
-        print("No manual moderator approval is required for this low/medium-risk contribution.")
-        return
 
+    # Every edit to an already-published package requires a formal approval from a trusted,
+    # non-author moderator, regardless of the updated bundle's computed risk level. The legacy
+    # comment command remains available only for the existing high-risk first-publication path.
     reviews = api(f"/repos/{repository}/pulls/{pr_number}/reviews?per_page=100")
     latest_reviews = latest_by_user(reviews, "submitted_at")
     approved = [
         login for login, review in latest_reviews.items()
         if login in moderators and login != author and review.get("state") == "APPROVED"
     ]
+    if is_update:
+        if approved:
+            print("Package update formally approved by trusted reviewer(s): " + ", ".join(sorted(approved)))
+            return
+        raise SystemExit(
+            "Updates to published packages require a formal APPROVED review from a trusted Marketplace moderator "
+            "other than the package publisher. Comment approvals do not replace this review."
+        )
+
+    if highest_risk != "high":
+        print("No manual moderator approval is required for this low/medium-risk first publication.")
+        return
+
     if approved:
         print("High-risk package approved by trusted reviewer(s): " + ", ".join(sorted(approved)))
         return
