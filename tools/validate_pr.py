@@ -13,7 +13,7 @@ from pathlib import Path
 
 from validate_marketplace import validate_package
 
-STABLE_VERSION = re.compile(r"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")
+STABLE_VERSION = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 
 
 def api(path):
@@ -210,7 +210,7 @@ def main():
             errors.append(f"{folder}: {exc}")
 
     if errors:
-        raise SystemExit("\\n".join(errors))
+        raise SystemExit("\n".join(errors))
     if not package_folders:
         print("No package files changed; repository policy checks passed.")
         return
