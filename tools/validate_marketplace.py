@@ -147,6 +147,38 @@ def validate_package(folder: Path):
         errors.append("publisher, name, and summary are required.")
     if len(str(manifest.get("summary", ""))) > 400:
         errors.append("summary must be 400 characters or fewer.")
+
+    description = manifest.get("description", "")
+    if not isinstance(description, str) or len(description) > 4000:
+        errors.append("description must be text with 4000 characters or fewer.")
+    tags = manifest.get("tags", [])
+    if not isinstance(tags, list) or len(tags) > 10 or any(
+        not isinstance(tag, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _+-]{0,23}", tag)
+        for tag in tags
+    ):
+        errors.append("tags must be a list of up to 10 short, plain-text labels.")
+    icon = manifest.get("icon", "bolt")
+    if not isinstance(icon, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", icon):
+        errors.append("icon must be a built-in icon key.")
+    for color_key in ("iconColor", "backgroundColor"):
+        color = manifest.get(color_key, "#FFFFFF" if color_key == "iconColor" else "#6750A4")
+        if not isinstance(color, str) or not re.fullmatch(r"#?[A-Fa-f0-9]{6}", color):
+            errors.append(f"{color_key} must be a six-digit hex color.")
+    if not isinstance(manifest.get("gradient", True), bool):
+        errors.append("gradient must be a boolean.")
+    if manifest.get("shape", "squircle") not in {"squircle", "rounded_square", "circle", "square", "teardrop"}:
+        errors.append("shape must be a supported app-icon shape.")
+    changelog = manifest.get("changelog", "")
+    if not isinstance(changelog, str) or len(changelog) > 2000:
+        errors.append("changelog must be text with 2000 characters or fewer.")
+    documentation_url = manifest.get("documentationUrl", "")
+    if documentation_url:
+        parsed_documentation_url = urlsplit(str(documentation_url))
+        if parsed_documentation_url.scheme != "https" or not parsed_documentation_url.hostname or parsed_documentation_url.username or parsed_documentation_url.password:
+            errors.append("documentationUrl must be a valid HTTPS URL without embedded credentials.")
+        if len(str(documentation_url)) > 300:
+            errors.append("documentationUrl must be 300 characters or fewer.")
+
     reserved = {"riskLevel", "reviewStatus", "reviewedAt", "reviewedBy", "signature", "moderatorApproval"}
     if reserved.intersection(manifest):
         errors.append("risk and review metadata are computed by the repository, not submitted by package creators.")
