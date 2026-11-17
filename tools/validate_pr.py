@@ -182,13 +182,32 @@ def main():
                 target = Path(temporary) / "packages" / package_id / folder_version
                 target.mkdir(parents=True, exist_ok=True)
                 package_paths = [path for path in paths if path.startswith(folder + "/")]
+                allowed_root_files = {"manifest.json", "bundle.json", "preview.png", "icon.png"}
+                if len(package_paths) > 8:
+                    raise ValueError("A package version may contain at most eight files.")
+                total_bytes = 0
                 for path in package_paths:
                     relative = Path(path[len(folder) + 1:])
-                    if relative.is_absolute() or ".." in relative.parts:
-                        raise ValueError("Package file path is not safe.")
+                    relative_text = relative.as_posix()
+                    is_screenshot = bool(re.fullmatch(r"screenshots/[0-9]{2}\\.png", relative_text))
+                    if (
+                        relative.is_absolute()
+                        or ".." in relative.parts
+                        or relative_text not in allowed_root_files and not is_screenshot
+                    ):
+                        raise ValueError(
+                            f"Unsupported package file '{relative_text}'. Only manifest.json, bundle.json, "
+                            "preview.png, icon.png, and screenshots/NN.png files are accepted."
+                        )
+                    raw = git_show(head, path)
+                    if len(raw) > 8 * 1024 * 1024:
+                        raise ValueError(f"Package file '{relative_text}' exceeds the 8 MB file limit.")
+                    total_bytes += len(raw)
+                    if total_bytes > 20 * 1024 * 1024:
+                        raise ValueError("The total package version size exceeds 20 MB.")
                     destination = target / relative
                     destination.parent.mkdir(parents=True, exist_ok=True)
-                    destination.write_bytes(git_show(head, path))
+                    destination.write_bytes(raw)
                 for filename in ("manifest.json", "bundle.json"):
                     if not (target / filename).is_file():
                         raise ValueError(f"Package must include {filename}.")
