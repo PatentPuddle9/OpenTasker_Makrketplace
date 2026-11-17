@@ -224,12 +224,12 @@ def main():
     latest_reviews = latest_by_user(reviews, "submitted_at")
     approved = [
         login for login, review in latest_reviews.items()
-        if login in moderators and login != author and review.get("state") == "APPROVED"
+        if login in moderators and login != author and review.get("state") == "APPROVED" and review.get("commit_id") == head
     ]
     if is_update:
         formal_update_reviewers = [
             login for login, review in latest_reviews.items()
-            if login != author and review.get("state") == "APPROVED"
+            if login != author and review.get("state") == "APPROVED" and review.get("commit_id") == head
         ]
         if not formal_update_reviewers:
             raise SystemExit(
