@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Process publisher-authenticated Marketplace deletion issues without human review."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+MARKER = "<!-- opentasker-marketplace-delete:v1 -->"
+PACKAGE_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{1,79}$")
+
+
+def api(method, path, payload=None):
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.github.com" + path,
+        data=data,
+        method=method,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer " + os.environ["GITHUB_TOKEN"],
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=25) as response:
+        raw = response.read().decode("utf-8")
+        return json.loads(raw) if raw else {}
+
+
+def finish_issue(repository, number, message):
+    api("POST", f"/repos/{repository}/issues/{number}/comments", {"body": message})
+    api("PATCH", f"/repos/{repository}/issues/{number}", {"state": "closed"})
+
+
+def main():
+    repository = os.environ["GITHUB_REPOSITORY"]
+    event_path = os.environ["GITHUB_EVENT_PATH"]
+    event = json.loads(Path(event_path).read_text(encoding="utf-8"))
+    issue = event.get("issue") or {}
+    if issue.get("pull_request"):
+        print("Ignoring pull-request issue event.")
+        return
+
+    body = issue.get("body") or ""
+    if MARKER not in body:
+        print("Issue is not an OpenTasker Marketplace deletion request.")
+        return
+
+    number = int(issue.get("number") or 0)
+    author = str((issue.get("user") or {}).get("login") or "").strip()
+    if not number or not author:
+        raise SystemExit("Deletion issue is missing its number or author.")
+
+    try:
+        payload_text = body.split(MARKER, 1)[1].strip()
+        request = json.loads(payload_text)
+        package_id = str(request.get("packageId", "")).strip().lower()
+    except Exception:
+        finish_issue(repository, number, "Deletion request rejected: the package request data is malformed.")
+        return
+
+    if not PACKAGE_ID.fullmatch(package_id):
+        finish_issue(repository, number, "Deletion request rejected: the package ID is invalid.")
+        return
+
+    manifests = sorted((Path("packages") / package_id).glob("*/manifest.json"))
+    if not manifests:
+        finish_issue(repository, number, f"Deletion request rejected: package `{package_id}` does not exist.")
+        return
+
+    publishers = set()
+    for manifest_path in manifests:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if str(manifest.get("id", "")).lower() != package_id:
+            finish_issue(repository, number, "Deletion request rejected: a package manifest does not match its folder.")
+            return
+        publishers.add(str(manifest.get("publisher", "")).lower())
+
+    if publishers != {author.lower()}:
+        finish_issue(
+            repository,
+            number,
+            "Deletion request rejected: only the original publisher recorded in the package manifest can delete it.",
+        )
+        return
+
+    decisions_path = Path("moderation/decisions.json")
+    decisions = json.loads(decisions_path.read_text(encoding="utf-8"))
+    deleted = decisions.setdefault("deletedPackages", [])
+    if not isinstance(deleted, list):
+        raise SystemExit("moderation/decisions.json deletedPackages must be an array.")
+    if any(str(item.get("id", "")).lower() == package_id for item in deleted if isinstance(item, dict)):
+        finish_issue(
+            repository,
+            number,
+            f"Package `{package_id}` was already deleted from the Marketplace. Existing installed copies are unaffected.",
+        )
+        return
+
+    decisions["deletedPackages"] = deleted + [{
+        "id": package_id,
+        "publisher": author,
+        "deletedAt": datetime.now(timezone.utc).isoformat(),
+        "requestUrl": issue.get("html_url", ""),
+    }]
+    decisions_path.write_text(
+        json.dumps(decisions, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"],
+        check=True,
+    )
+    subprocess.run(["git", "add", "moderation/decisions.json"], check=True)
+    subprocess.run(
+        ["git", "commit", "-m", f"Withdraw Marketplace package {package_id}"],
+        check=True,
+    )
+    subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
+
+    finish_issue(
+        repository,
+        number,
+        f"Package `{package_id}` has been withdrawn from the Marketplace. No review was required. "
+        "New installs are no longer offered; automations already imported by users remain installed and unchanged.",
+    )
+    print(f"Deleted Marketplace listing for {package_id}; existing installed copies are untouched.")
+
+
+if __name__ == "__main__":
+    main()
