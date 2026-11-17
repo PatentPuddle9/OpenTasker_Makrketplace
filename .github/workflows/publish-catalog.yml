@@ -39,6 +39,9 @@ jobs:
             tools/process_deletion_request.py \
             tools/process_marketplace_community.py
 
+      - name: Run Marketplace image security regression tests
+        run: python -m unittest discover -s tools -p "test_*.py" -v
+
       - name: Build and publish from the latest main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
