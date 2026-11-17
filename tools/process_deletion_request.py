@@ -165,6 +165,13 @@ def main():
             item for item in withdrawn
             if not (isinstance(item, dict) and str(item.get("id", "")).lower() == package_id)
         ]
+        quarantined = decisions.setdefault("quarantinedPackages", [])
+        if not isinstance(quarantined, list):
+            raise SystemExit("moderation/decisions.json quarantinedPackages must be an array.")
+        decisions["quarantinedPackages"] = [
+            item for item in quarantined
+            if not (isinstance(item, dict) and str(item.get("id", "")).lower() == package_id)
+        ]
 
         # Ratings and featured status belong to a package generation. A fresh package
         # reusing the same ID must start with no inherited stars or featured placement.
