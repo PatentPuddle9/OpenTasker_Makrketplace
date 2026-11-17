@@ -1,17 +1,17 @@
 # OpenTasker Community Marketplace
 
-A GitHub-native catalogue for reusable OpenTasker actions, automations, and Widget Display scenes.
+A GitHub-native catalogue for reusable OpenTasker Actions, Shortcut Widgets, Widget Display layouts, theme presets, and custom widget icons.
 
 There is no application server. GitHub stores packages and the signed catalogue, pull requests are the submission mechanism, and GitHub Actions performs automated validation and catalogue publishing.
 
 ## How it works
 
-1. A creator exports a sanitized OpenTasker bundle and prepares a package manifest.
-2. They submit the package in a pull request under packages/<package-id>/<version>/.
-3. GitHub Actions validates the bundle, checks required inputs and external destinations, scans for personal data and credentials, and calculates the package risk level.
-4. Low- and medium-risk packages can pass automated moderation. High-risk packages require approval from an account in .github/marketplace-reviewers.json.
-5. A maintainer merges the pull request. The publishing workflow rebuilds and signs the catalogue.
-6. OpenTasker verifies the catalogue signature and package hash, then sends the bundle through its normal import, capability, and risk review.
+1. A creator prepares a supported data-only package and manifest. Visual packages also include a generated preview.png; Custom Widget Icon packages include icon.png.
+2. The app submits the package in a pull request under packages/<package-id>/<version>/.
+3. GitHub Actions validates the package structure and assets, checks required inputs and external destinations for automation packages, and calculates the package risk level.
+4. Automated validation runs for every package. High-risk packages require trusted-moderator approval; updates to existing packages require an independent APPROVED review.
+5. A maintainer inspects the pull request (including the PNG preview for visual packages) and merges it. The publishing workflow rebuilds and signs the catalogue.
+6. OpenTasker verifies the signed catalogue and each downloaded package asset. Automation bundles still go through the normal import, capability, and risk review.
 
 Marketplace approval is not a guarantee that an automation is harmless. The app continues to show the risk level after approval.
 
